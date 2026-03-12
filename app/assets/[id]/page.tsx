@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAssetById } from "@/services/assets";
+import { getAssetHistory } from "@/services/asset-history";
+import { getTickets } from "@/services/tickets";
+import { getAssetAttachments } from "@/services/asset-attachments";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { AssetProfileTabs } from "@/components/asset-profile-tabs";
 import { ArrowLeft } from "lucide-react";
 
 interface PageProps {
@@ -24,6 +27,12 @@ export default async function AssetDetailPage({ params }: PageProps) {
     spare: "outline",
   };
 
+  const [maintenanceHistory, ticketsLinked, attachments] = await Promise.all([
+    getAssetHistory({ assetId: id, limit: 50 }),
+    getTickets({ assetId: id }).catch(() => []),
+    getAssetAttachments(id).catch(() => []),
+  ]);
+
   return (
     <DashboardLayout title="Asset">
       <div className="space-y-6">
@@ -38,39 +47,12 @@ export default async function AssetDetailPage({ params }: PageProps) {
             {asset.status.replace("_", " ")}
           </Badge>
         </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">Serial:</span> {asset.serial_number ?? "—"}</p>
-              <p><span className="text-muted-foreground">Device type:</span> {asset.device_type}</p>
-              <p><span className="text-muted-foreground">Brand / Model:</span> {[asset.brand, asset.model].filter(Boolean).join(" / ") || "—"}</p>
-              <p><span className="text-muted-foreground">Department:</span> {asset.department ?? "—"}</p>
-              <p><span className="text-muted-foreground">Location:</span> {asset.location ?? "—"}</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignment</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <p><span className="text-muted-foreground">Assigned to:</span> {asset.assigned_user_name ?? "—"}</p>
-              <p><span className="text-muted-foreground">Email:</span> {asset.assigned_user_email ?? "—"}</p>
-            </CardContent>
-          </Card>
-        </div>
-        {asset.notes && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Notes</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {asset.notes}
-            </CardContent>
-          </Card>
-        )}
+        <AssetProfileTabs
+          asset={asset}
+          maintenanceHistory={maintenanceHistory}
+          ticketsLinked={ticketsLinked}
+          attachments={attachments}
+        />
       </div>
     </DashboardLayout>
   );

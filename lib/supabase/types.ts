@@ -193,6 +193,7 @@ export interface Database {
           priority: string;
           status: string;
           assigned_to_id: string | null;
+          asset_id: string | null;
           resolved_at: string | null;
           created_at: string;
           updated_at: string;
@@ -222,6 +223,20 @@ export interface Database {
           created_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["notifications"]["Insert"]>;
+      };
+      asset_attachments: {
+        Row: {
+          id: string;
+          asset_id: string;
+          file_url: string;
+          file_name: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["asset_attachments"]["Row"], "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["asset_attachments"]["Insert"]>;
       };
     };
   };

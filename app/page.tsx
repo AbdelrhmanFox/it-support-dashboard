@@ -15,9 +15,15 @@ import {
   getDashboardCounts,
   getTicketsPerMonth,
   getInventoryStatus,
+  getMostCommonIssues,
+  getPartsConsumptionByMonth,
+  getMaintenanceStatsByMonth,
   type DashboardCounts as CountsType,
   type TicketsPerMonthItem,
   type InventoryStatusItem,
+  type IssueTypeCount,
+  type PartsConsumptionItem,
+  type MaintenanceStatsItem,
 } from "@/services/dashboard";
 import { getRecentActivity, type ActivityItem } from "@/services/activity";
 import {
@@ -38,6 +44,9 @@ export default function DashboardPage() {
   const [counts, setCounts] = useState<CountsType | null>(null);
   const [ticketsPerMonth, setTicketsPerMonth] = useState<TicketsPerMonthItem[]>([]);
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatusItem[]>([]);
+  const [mostCommonIssues, setMostCommonIssues] = useState<IssueTypeCount[]>([]);
+  const [partsConsumption, setPartsConsumption] = useState<PartsConsumptionItem[]>([]);
+  const [maintenanceStats, setMaintenanceStats] = useState<MaintenanceStatsItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState(false);
@@ -49,20 +58,26 @@ export default function DashboardPage() {
         if (cancelled) return;
         setLoading(false);
         setDataError(true);
-        setCounts((c) => c ?? { openTickets: 0, lowStockItems: 0, delayedSuppliers: 0, pendingRequests: 0 });
+        setCounts((c) => c ?? { openTickets: 0, lowStockItems: 0, delayedSuppliers: 0, pendingRequests: 0, devicesRequiringMaintenance: 0, partsInstalledToday: 0 });
       }, 8000);
 
       try {
-        const [c, tpm, inv, act] = await Promise.all([
+        const [c, tpm, inv, issues, consumption, maintenance, act] = await Promise.all([
           getDashboardCounts(),
           getTicketsPerMonth(6),
           getInventoryStatus(),
+          getMostCommonIssues(6),
+          getPartsConsumptionByMonth(6),
+          getMaintenanceStatsByMonth(6),
           getRecentActivity(10),
         ]);
         if (cancelled) return;
         setCounts(c);
         setTicketsPerMonth(tpm);
         setInventoryStatus(inv);
+        setMostCommonIssues(issues);
+        setPartsConsumption(consumption);
+        setMaintenanceStats(maintenance);
         setActivity(act);
       } catch (e) {
         if (cancelled) return;
@@ -73,9 +88,14 @@ export default function DashboardPage() {
           lowStockItems: 0,
           delayedSuppliers: 0,
           pendingRequests: 0,
+          devicesRequiringMaintenance: 0,
+          partsInstalledToday: 0,
         });
         setTicketsPerMonth([]);
         setInventoryStatus([]);
+        setMostCommonIssues([]);
+        setPartsConsumption([]);
+        setMaintenanceStats([]);
         setActivity([]);
       } finally {
         if (!cancelled) {
@@ -154,6 +174,30 @@ export default function DashboardPage() {
               </Button>
             </CardContent>
           </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Devices in Maintenance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{counts?.devicesRequiringMaintenance ?? 0}</div>
+              <p className="text-xs text-muted-foreground">Assets currently in maintenance</p>
+              <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                <Link href="/assets?status=in_maintenance">View</Link>
+              </Button>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Parts Installed Today</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{counts?.partsInstalledToday ?? 0}</div>
+              <p className="text-xs text-muted-foreground">OUT transactions today</p>
+              <Button variant="link" className="h-auto p-0 text-xs" asChild>
+                <Link href="/inventory">View</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Charts row */}
@@ -213,6 +257,84 @@ export default function DashboardPage() {
                 ) : (
                   <div className="flex h-full items-center justify-center rounded-md border border-dashed text-muted-foreground text-sm">
                     No parts data yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Second row: Most common issues, Parts consumption, Maintenance stats */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <Card>
+            <CardHeader>
+              <CardTitle>Most common issues</CardTitle>
+              <CardDescription>Tickets by issue type</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[260px]">
+                {mostCommonIssues.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={mostCommonIssues} layout="vertical" margin={{ left: 0 }}>
+                      <XAxis type="number" className="text-xs" />
+                      <YAxis type="category" dataKey="issue_type" width={100} className="text-xs" tick={{ fontSize: 11 }} />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="hsl(142 76% 36%)" radius={[0, 4, 4, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-md border border-dashed text-muted-foreground text-sm">
+                    No data yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Parts consumption</CardTitle>
+              <CardDescription>OUT quantity per month (6 months)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[260px]">
+                {partsConsumption.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={partsConsumption}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="hsl(38 92% 50%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-md border border-dashed text-muted-foreground text-sm">
+                    No data yet
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Device maintenance</CardTitle>
+              <CardDescription>History entries per month (6 months)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[260px]">
+                {maintenanceStats.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={maintenanceStats}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="month" className="text-xs" />
+                      <YAxis className="text-xs" />
+                      <Tooltip />
+                      <Bar dataKey="count" fill="hsl(262 83% 58%)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full items-center justify-center rounded-md border border-dashed text-muted-foreground text-sm">
+                    No data yet
                   </div>
                 )}
               </div>

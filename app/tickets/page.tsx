@@ -122,6 +122,7 @@ export default function TicketsPage() {
       priority: values.priority,
       status: values.status,
       assigned_to_id: null,
+      asset_id: null,
       resolved_at: null,
     });
     setDialogOpen(false);
