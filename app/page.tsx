@@ -40,9 +40,18 @@ export default function DashboardPage() {
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatusItem[]>([]);
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataError, setDataError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
+      const timeout = setTimeout(() => {
+        if (cancelled) return;
+        setLoading(false);
+        setDataError(true);
+        setCounts((c) => c ?? { openTickets: 0, lowStockItems: 0, delayedSuppliers: 0, pendingRequests: 0 });
+      }, 8000);
+
       try {
         const [c, tpm, inv, act] = await Promise.all([
           getDashboardCounts(),
@@ -50,17 +59,33 @@ export default function DashboardPage() {
           getInventoryStatus(),
           getRecentActivity(10),
         ]);
+        if (cancelled) return;
         setCounts(c);
         setTicketsPerMonth(tpm);
         setInventoryStatus(inv);
         setActivity(act);
       } catch (e) {
+        if (cancelled) return;
         console.error(e);
+        setDataError(true);
+        setCounts({
+          openTickets: 0,
+          lowStockItems: 0,
+          delayedSuppliers: 0,
+          pendingRequests: 0,
+        });
+        setTicketsPerMonth([]);
+        setInventoryStatus([]);
+        setActivity([]);
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          clearTimeout(timeout);
+          setLoading(false);
+        }
       }
     }
     load();
+    return () => { cancelled = true; };
   }, []);
 
   if (loading) {
@@ -73,6 +98,11 @@ export default function DashboardPage() {
 
   return (
     <DashboardLayout title="Dashboard">
+      {dataError && (
+        <div className="mb-4 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+          <strong>Demo mode.</strong> No database connected. Add Supabase URL and anon key in Netlify environment variables, then run <code className="rounded bg-muted px-1">database/schema.sql</code> in Supabase SQL Editor to see real data.
+        </div>
+      )}
       <div className="space-y-6">
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
