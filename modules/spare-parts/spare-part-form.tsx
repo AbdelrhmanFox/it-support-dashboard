@@ -107,14 +107,14 @@ export function SparePartForm({
         <div className="space-y-2">
           <Label>Supplier</Label>
           <Select
-            value={form.watch("supplier_id") ?? ""}
-            onValueChange={(v) => form.setValue("supplier_id", v || null)}
+            value={form.watch("supplier_id") ?? "__none__"}
+            onValueChange={(v) => form.setValue("supplier_id", v === "__none__" ? null : v)}
           >
             <SelectTrigger>
               <SelectValue placeholder="Select supplier" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">None</SelectItem>
+              <SelectItem value="__none__">None</SelectItem>
               {suppliers.map((s) => (
                 <SelectItem key={s.id} value={s.id}>
                   {s.name}

@@ -44,12 +44,17 @@ A production-ready **IT Support Operations Dashboard** built with Next.js (App R
      NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
      NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
      ```
+   - Optional (Public Ticket Portal): `N8N_NEW_TICKET_WEBHOOK_URL` — n8n webhook URL to notify on new tickets.
 
-4. **Run**
+4. **Public Ticket Portal (optional attachment)**
+   - Run `database/migrations/add-ticket-attachment.sql` in Supabase SQL Editor to add `attachment_url` to `tickets`.
+   - In Supabase Dashboard → **Storage**: create a bucket named `ticket-attachments`, set it **Public** if you want direct image URLs, and add a policy allowing **Insert** for the anon role so the server can upload screenshots.
+
+5. **Run**
    ```bash
    npm run dev
    ```
-   Open [http://localhost:3000](http://localhost:3000).
+   Open [http://localhost:3000](http://localhost:3000). Public support form: [http://localhost:3000/support](http://localhost:3000/support) or [http://localhost:3000/ticket-request](http://localhost:3000/ticket-request).
 
 ## Main features
 
@@ -61,6 +66,7 @@ A production-ready **IT Support Operations Dashboard** built with Next.js (App R
 - **Assets:** List, filters, create/edit (tag, type, status, assignment, warranty dates), detail.
 - **Asset history:** List of maintenance entries, filter by asset.
 - **Tickets:** List by status, create ticket, detail page.
+- **Public Ticket Portal:** Employees can submit support requests without logging in at `/support` or `/ticket-request`. Optional screenshot attachment; rate limit by email; optional n8n webhook.
 - **Notifications:** Bell dropdown in header, full notifications page, mark as read.
 - **Reports:** Export tickets, inventory, suppliers, purchase requests, or assets to Excel.
 
