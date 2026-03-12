@@ -1,0 +1,15 @@
+# Netlify build config for Next.js
+# https://docs.netlify.com/integrations/frameworks/next-js/
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in Netlify UI:
+# Site settings → Environment variables
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
