@@ -52,6 +52,7 @@ export default function SuppliersPage() {
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Supplier | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
@@ -83,12 +84,14 @@ export default function SuppliersPage() {
 
   function openCreate() {
     setEditing(null);
+    setFormError(null);
     form.reset({ name: "", contact_person: "", phone: "", email: "", sla_days: 7, notes: "" });
     setDialogOpen(true);
   }
 
   function openEdit(s: Supplier) {
     setEditing(s);
+    setFormError(null);
     form.reset({
       name: s.name,
       contact_person: s.contact_person ?? "",
@@ -101,6 +104,7 @@ export default function SuppliersPage() {
   }
 
   async function onSubmit(values: SupplierFormValues) {
+    setFormError(null);
     const payload = {
       name: values.name,
       contact_person: values.contact_person || null,
@@ -109,13 +113,24 @@ export default function SuppliersPage() {
       sla_days: values.sla_days,
       notes: values.notes || null,
     };
-    if (editing) {
-      await updateSupplier(editing.id, payload);
-    } else {
-      await createSupplier(payload);
+    try {
+      if (editing) {
+        await updateSupplier(editing.id, payload);
+      } else {
+        await createSupplier(payload);
+      }
+      setDialogOpen(false);
+      load();
+    } catch (e: unknown) {
+      const err = e as { message?: string; error_description?: string; details?: string };
+      const message =
+        err?.message ||
+        err?.error_description ||
+        err?.details ||
+        (typeof e === "string" ? e : "Something went wrong. Check the console.");
+      setFormError(message);
+      console.error("Supplier save error:", e);
     }
-    setDialogOpen(false);
-    load();
   }
 
   return (
@@ -196,6 +211,11 @@ export default function SuppliersPage() {
             <DialogTitle>{editing ? "Edit supplier" : "Add supplier"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {formError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {formError}
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Name *</Label>
               <Input {...form.register("name")} />
@@ -230,7 +250,7 @@ export default function SuppliersPage() {
                 Cancel
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
-                {editing ? "Update" : "Create"}
+                {form.formState.isSubmitting ? "Saving..." : editing ? "Update" : "Create"}
               </Button>
             </div>
           </form>
