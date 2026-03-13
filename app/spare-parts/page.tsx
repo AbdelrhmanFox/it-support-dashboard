@@ -39,6 +39,7 @@ import {
   setLinkedAssetsForSparePart,
 } from "@/services/spare-parts";
 import { getAssets } from "@/services/assets";
+import { getLookupOptions } from "@/services/lookup-options";
 import { Plus, Search, FileUp } from "lucide-react";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import {
@@ -70,6 +71,7 @@ export default function SparePartsPage() {
   const [parts, setParts] = useState<SparePart[]>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
   const [assets, setAssets] = useState<Awaited<ReturnType<typeof getAssets>>>([]);
+  const [categoryOptions, setCategoryOptions] = useState<string[]>([]);
   const [linkedAssetIdsForForm, setLinkedAssetIdsForForm] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -119,6 +121,22 @@ export default function SparePartsPage() {
   useEffect(() => {
     load();
   }, [search, category, supplierId, lowStockOnly, effectiveBranchId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadCategoryOptions() {
+      try {
+        const opts = await getLookupOptions("spare_part_category");
+        if (!cancelled) setCategoryOptions(opts);
+      } catch {
+        if (!cancelled) setCategoryOptions([]);
+      }
+    }
+    loadCategoryOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function openImportDialog() {
     setImportFile(null);
@@ -507,6 +525,7 @@ export default function SparePartsPage() {
             part={editingPart}
             suppliers={suppliers}
             assets={assets}
+            categoryOptions={categoryOptions}
             linkedAssetIds={linkedAssetIdsForForm}
             onSubmit={handleSubmit}
             onCancel={() => { setDialogOpen(false); setEditingPart(null); }}

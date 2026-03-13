@@ -10,6 +10,7 @@ export const LOOKUP_CATEGORIES = {
   asset_device_type: "Device types (assets)",
   asset_brand: "Brands (assets)",
   asset_department: "Departments (assets)",
+  spare_part_category: "Categories (spare parts)",
 } as const;
 
 export type LookupCategory = keyof typeof LOOKUP_CATEGORIES;

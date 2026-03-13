@@ -69,7 +69,8 @@ FROM (VALUES
   ('asset_department', 'Finance', 30),
   ('asset_department', 'Operations', 40),
   ('asset_department', 'Production', 50),
-  ('asset_department', 'Other', 100)
+  ('asset_department', 'Other', 100),
+  ('spare_part_category', 'Other', 100)
 ) AS v(category, label, sort_order)
 WHERE NOT EXISTS (
   SELECT 1 FROM public.lookup_options lo

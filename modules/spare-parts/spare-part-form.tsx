@@ -16,7 +16,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Search } from "lucide-react";
-import { DEVICE_TYPE_OPTIONS } from "@/lib/constants";
 import type { SparePart } from "@/services/spare-parts";
 import type { Supplier } from "@/services/suppliers";
 import type { Asset } from "@/services/assets";
@@ -44,6 +43,7 @@ interface SparePartFormProps {
   part?: SparePart | null;
   suppliers: Supplier[];
   assets: Asset[];
+  categoryOptions: string[];
   linkedAssetIds?: string[];
   onSubmit: (values: SparePartFormSubmitPayload) => Promise<void>;
   onCancel: () => void;
@@ -53,6 +53,7 @@ export function SparePartForm({
   part,
   suppliers,
   assets,
+  categoryOptions,
   linkedAssetIds = [],
   onSubmit,
   onCancel,
@@ -122,22 +123,40 @@ export function SparePartForm({
         </div>
         <div className="space-y-2">
           <Label>Category</Label>
-          <Select
-            value={form.watch("category") || "__none__"}
-            onValueChange={(v) => form.setValue("category", v === "__none__" ? "" : v)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select category" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">None</SelectItem>
-              {DEVICE_TYPE_OPTIONS.map((opt) => (
-                <SelectItem key={opt} value={opt}>
-                  {opt}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+      {categoryOptions.length === 0 ? (
+        <Input
+          id="category"
+          {...form.register("category")}
+          placeholder="e.g. Keyboard, Screen"
+        />
+      ) : (
+        (() => {
+          const current = form.watch("category") || "";
+          const base = categoryOptions;
+          const opts =
+            current && !base.includes(current) ? [current, ...base] : base;
+          return (
+            <Select
+              value={current || "__none__"}
+              onValueChange={(v) =>
+                form.setValue("category", v === "__none__" ? "" : v)
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {opts.map((opt) => (
+                  <SelectItem key={opt} value={opt}>
+                    {opt}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          );
+        })()
+      )}
         </div>
         <div className="space-y-2">
           <Label htmlFor="brand">Brand</Label>
