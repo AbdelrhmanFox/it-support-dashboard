@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, FileUp } from "lucide-react";
-import { createAsset, updateAsset } from "@/services/assets";
+import { createAsset, updateAsset, deleteAsset } from "@/services/assets";
 import { getLookupOptions } from "@/services/lookup-options";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
@@ -427,9 +427,29 @@ export default function AssetsPage() {
                         </TableCell>
                         <TableCell>
                           {canEdit && (
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                              Edit
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                                Edit
+                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete asset ${a.asset_tag}? This cannot be undone.`)) return;
+                                    try {
+                                      await deleteAsset(a.id);
+                                      load();
+                                    } catch (e) {
+                                      alert(e instanceof Error ? e.message : String(e));
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>

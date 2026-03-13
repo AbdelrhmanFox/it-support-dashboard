@@ -29,7 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Plus, Search, FileUp } from "lucide-react";
-import { createSupplier, updateSupplier } from "@/services/suppliers";
+import { createSupplier, updateSupplier, deleteSupplier } from "@/services/suppliers";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -307,9 +307,29 @@ export default function SuppliersPage() {
                         <TableCell>{s.sla_days}</TableCell>
                         <TableCell>
                           {canEdit && (
-                            <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
-                              Edit
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
+                                Edit
+                              </Button>
+                              {isAdmin && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-destructive hover:text-destructive"
+                                  onClick={async () => {
+                                    if (!confirm(`Delete supplier "${s.name}"? This cannot be undone if referenced elsewhere.`)) return;
+                                    try {
+                                      await deleteSupplier(s.id);
+                                      load();
+                                    } catch (e) {
+                                      alert(e instanceof Error ? e.message : String(e));
+                                    }
+                                  }}
+                                >
+                                  Delete
+                                </Button>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                       </TableRow>

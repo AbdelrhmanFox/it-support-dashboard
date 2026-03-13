@@ -50,6 +50,12 @@ export async function updateTicket(id: string, input: Update): Promise<Ticket> {
   return data;
 }
 
+export async function deleteTicket(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("tickets").delete().eq("id", id);
+  if (error) throw error;
+}
+
 export function generateTicketNumber(): string {
   return `TKT-${Date.now()}`;
 }

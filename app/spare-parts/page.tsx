@@ -34,6 +34,7 @@ import { SparePartForm, type SparePartFormSubmitPayload } from "@/modules/spare-
 import {
   createSparePart,
   updateSparePart,
+  deleteSparePart,
   getLinkedAssetIdsForSparePart,
   setLinkedAssetsForSparePart,
 } from "@/services/spare-parts";
@@ -383,16 +384,36 @@ export default function SparePartsPage() {
                           </TableCell>
                           <TableCell>
                             {canEdit && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => {
-                                  setEditingPart(part);
-                                  setDialogOpen(true);
-                                }}
-                              >
-                                Edit
-                              </Button>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setEditingPart(part);
+                                    setDialogOpen(true);
+                                  }}
+                                >
+                                  Edit
+                                </Button>
+                                {isAdmin && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={async () => {
+                                      if (!confirm(`Delete spare part "${part.part_name}"? This cannot be undone. If purchase requests reference it, delete may fail.`)) return;
+                                      try {
+                                        await deleteSparePart(part.id);
+                                        load();
+                                      } catch (e) {
+                                        alert(e instanceof Error ? e.message : String(e));
+                                      }
+                                    }}
+                                  >
+                                    Delete
+                                  </Button>
+                                )}
+                              </div>
                             )}
                           </TableCell>
                         </TableRow>

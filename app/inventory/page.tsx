@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getStockTransactions } from "@/services/stock-transactions";
+import { getStockTransactions, deleteStockTransaction } from "@/services/stock-transactions";
 import { getSpareParts } from "@/services/spare-parts";
 import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -23,9 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export default function InventoryPage() {
-  const { effectiveBranchId } = useBranch();
+  const { effectiveBranchId, isAdmin } = useBranch();
   const [transactions, setTransactions] = useState<Awaited<ReturnType<typeof getStockTransactions>>>([]);
   const [parts, setParts] = useState<Awaited<ReturnType<typeof getSpareParts>>>([]);
   const [loading, setLoading] = useState(true);
@@ -89,12 +90,13 @@ export default function InventoryPage() {
                     <TableHead className="text-right">Quantity</TableHead>
                     <TableHead>Related asset</TableHead>
                     <TableHead>Notes</TableHead>
+                    {isAdmin && <TableHead className="w-[80px]">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
+                      <TableCell colSpan={isAdmin ? 7 : 6} className="text-center text-muted-foreground">
                         No transactions found.
                       </TableCell>
                     </TableRow>
@@ -123,6 +125,26 @@ export default function InventoryPage() {
                         <TableCell className="max-w-[200px] truncate text-muted-foreground">
                           {t.notes ?? "—"}
                         </TableCell>
+                        {isAdmin && (
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={async () => {
+                                if (!confirm("Delete this stock transaction? Stock totals will not auto-adjust; use a correcting IN/OUT if needed.")) return;
+                                try {
+                                  await deleteStockTransaction(t.id);
+                                  load();
+                                } catch (e) {
+                                  alert(e instanceof Error ? e.message : String(e));
+                                }
+                              }}
+                            >
+                              Delete
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))
                   )}

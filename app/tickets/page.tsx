@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getTickets, createTicket, updateTicket, generateTicketNumber, type Ticket } from "@/services/tickets";
+import { getTickets, createTicket, updateTicket, deleteTicket, generateTicketNumber, type Ticket } from "@/services/tickets";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -341,9 +341,29 @@ export default function TicketsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/tickets/${t.id}`}>View</Link>
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/tickets/${t.id}`}>View</Link>
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (!confirm(`Delete ticket ${t.ticket_number}?`)) return;
+                                  try {
+                                    await deleteTicket(t.id);
+                                    load();
+                                  } catch (e) {
+                                    alert(e instanceof Error ? e.message : String(e));
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))

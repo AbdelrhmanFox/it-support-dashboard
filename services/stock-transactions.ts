@@ -44,3 +44,9 @@ export async function createStockTransaction(
   if (error) throw error;
   return data as StockTransaction;
 }
+
+export async function deleteStockTransaction(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("stock_transactions").delete().eq("id", id);
+  if (error) throw error;
+}

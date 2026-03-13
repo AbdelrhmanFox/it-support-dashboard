@@ -73,6 +73,12 @@ export async function updatePurchaseRequest(id: string, input: Update): Promise<
   return data as PurchaseRequest;
 }
 
+export async function deletePurchaseRequest(id: string): Promise<void> {
+  const supabase = createClient();
+  const { error } = await supabase.from("purchase_requests").delete().eq("id", id);
+  if (error) throw error;
+}
+
 /** Generate next request number (e.g. PR-20250312-0001). */
 export function generateRequestNumber(): string {
   const d = new Date();

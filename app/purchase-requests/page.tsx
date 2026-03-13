@@ -6,6 +6,7 @@ import {
   getPurchaseRequests,
   createPurchaseRequest,
   updatePurchaseRequest,
+  deletePurchaseRequest,
   generateRequestNumber,
   type PurchaseRequest,
 } from "@/services/purchase-requests";
@@ -359,9 +360,29 @@ export default function PurchaseRequestsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link href={`/purchase-requests/${r.id}`}>View</Link>
-                          </Button>
+                          <div className="flex gap-1">
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link href={`/purchase-requests/${r.id}`}>View</Link>
+                            </Button>
+                            {isAdmin && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={async () => {
+                                  if (!confirm(`Delete purchase request ${r.request_number}?`)) return;
+                                  try {
+                                    await deletePurchaseRequest(r.id);
+                                    load();
+                                  } catch (e) {
+                                    alert(e instanceof Error ? e.message : String(e));
+                                  }
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))
