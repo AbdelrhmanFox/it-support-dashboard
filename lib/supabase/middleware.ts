@@ -14,7 +14,8 @@ function isPublicPath(pathname: string): boolean {
 export async function updateSession(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const requireAuth = process.env.REQUIRE_AUTH === "true";
+  // Require login by default when Supabase is configured (e.g. production). Set REQUIRE_AUTH=false to allow access without login.
+  const requireAuth = !!(url && key) && process.env.REQUIRE_AUTH !== "false";
 
   // Skip Supabase when env is not configured (allows running the app without Supabase)
   if (!url || !key) {
