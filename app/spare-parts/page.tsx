@@ -176,6 +176,7 @@ export default function SparePartsPage() {
             minimum_stock: Number.isFinite(minimumStock) ? minimumStock : 0,
             reorder_level: Number.isFinite(reorderLevel) ? reorderLevel : 0,
             notes: (row.notes != null && String(row.notes).trim()) || null,
+            image_url: null,
             branch_id: branchId,
           });
           success++;
