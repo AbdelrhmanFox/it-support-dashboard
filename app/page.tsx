@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,10 @@ const CHART_SECTION_IDS = [
   "recentActivity",
 ] as const;
 const DASHBOARD_CHARTS_ORDER_KEY = "dashboard-charts-order";
+const DASHBOARD_KPI_SIZES_KEY = "dashboard-kpi-sizes";
+const DASHBOARD_CHARTS_SIZES_KEY = "dashboard-charts-sizes";
+
+type CardSize = "s" | "m" | "l";
 
 function getStoredKpiOrder(): string[] {
   if (typeof window === "undefined") return [...KPI_CARD_IDS];
@@ -89,10 +93,33 @@ function getStoredChartsOrder(): string[] {
   }
 }
 
+function getStoredSizes(key: string, validIds: readonly string[]): Record<string, CardSize> {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, string>;
+    const result: Record<string, CardSize> = {};
+    for (const id of validIds) {
+      const v = parsed[id];
+      if (v === "s" || v === "m" || v === "l") result[id] = v;
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}
+
 export default function DashboardPage() {
   const { effectiveBranchId, role, branchLabel, isAdmin } = useBranch();
   const [kpiOrder, setKpiOrder] = useState<string[]>(() => getStoredKpiOrder());
   const [chartSectionOrder, setChartSectionOrder] = useState<string[]>(() => getStoredChartsOrder());
+  const [kpiSizes, setKpiSizes] = useState<Record<string, CardSize>>(() =>
+    getStoredSizes(DASHBOARD_KPI_SIZES_KEY, KPI_CARD_IDS)
+  );
+  const [chartSizes, setChartSizes] = useState<Record<string, CardSize>>(() =>
+    getStoredSizes(DASHBOARD_CHARTS_SIZES_KEY, CHART_SECTION_IDS)
+  );
   const [dashboardEditMode, setDashboardEditMode] = useState(false);
   const [counts, setCounts] = useState<CountsType | null>(null);
   const [ticketsPerMonth, setTicketsPerMonth] = useState<TicketsPerMonthItem[]>([]);
@@ -194,6 +221,123 @@ export default function DashboardPage() {
       localStorage.setItem(DASHBOARD_CHARTS_ORDER_KEY, JSON.stringify(order));
     }
   }, []);
+
+  const saveKpiSize = useCallback((id: string, size: CardSize) => {
+    setKpiSizes((prev) => {
+      const next = { ...prev, [id]: size };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(DASHBOARD_KPI_SIZES_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
+  const saveChartSize = useCallback((id: string, size: CardSize) => {
+    setChartSizes((prev) => {
+      const next = { ...prev, [id]: size };
+      if (typeof window !== "undefined") {
+        localStorage.setItem(DASHBOARD_CHARTS_SIZES_KEY, JSON.stringify(next));
+      }
+      return next;
+    });
+  }, []);
+
+  const getKpiSpan = useCallback(
+    (id: string): 1 | 2 | 4 => {
+      const size = kpiSizes[id] ?? "s";
+      return size === "l" ? 4 : size === "m" ? 2 : 1;
+    },
+    [kpiSizes]
+  );
+
+  const getChartSpan = useCallback(
+    (id: string): 1 | 2 | 3 => {
+      const size = chartSizes[id] ?? "m";
+      return size === "l" ? 3 : size === "m" ? 2 : 1;
+    },
+    [chartSizes]
+  );
+
+  const RESIZE_THRESHOLD_PX = 60;
+  const [resizingCardId, setResizingCardId] = useState<string | null>(null);
+  const [resizingType, setResizingType] = useState<"kpi" | "chart" | null>(null);
+  const resizeRef = useRef({ startX: 0, startSpan: 1 });
+
+  const spanToKpiSize = (span: number): CardSize =>
+    span >= 4 ? "l" : span >= 2 ? "m" : "s";
+  const spanToChartSize = (span: number): CardSize =>
+    span >= 3 ? "l" : span >= 2 ? "m" : "s";
+
+  const handleResizeStart = useCallback(
+    (type: "kpi" | "chart", id: string, clientX: number, currentSpan: number) => {
+      setResizingCardId(id);
+      setResizingType(type);
+      resizeRef.current = { startX: clientX, startSpan: currentSpan };
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (resizingCardId === null || resizingType === null) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const deltaX = e.clientX - resizeRef.current.startX;
+      const kpiSteps: (1 | 2 | 4)[] = [1, 2, 4];
+      const chartSteps: (1 | 2 | 3)[] = [1, 2, 3];
+      if (deltaX > RESIZE_THRESHOLD_PX) {
+        if (resizingType === "kpi") {
+          const curr = resizeRef.current.startSpan as 1 | 2 | 4;
+          const idx = kpiSteps.indexOf(curr);
+          const next = kpiSteps[Math.min(kpiSteps.length - 1, idx + 1)];
+          resizeRef.current = { startX: e.clientX, startSpan: next };
+          setKpiSizes((prev) => ({ ...prev, [resizingCardId]: spanToKpiSize(next) }));
+        } else {
+          const curr = resizeRef.current.startSpan as 1 | 2 | 3;
+          const idx = chartSteps.indexOf(curr);
+          const next = chartSteps[Math.min(chartSteps.length - 1, idx + 1)];
+          resizeRef.current = { startX: e.clientX, startSpan: next };
+          setChartSizes((prev) => ({ ...prev, [resizingCardId]: spanToChartSize(next) }));
+        }
+      } else if (deltaX < -RESIZE_THRESHOLD_PX) {
+        if (resizingType === "kpi") {
+          const curr = resizeRef.current.startSpan as 1 | 2 | 4;
+          const idx = kpiSteps.indexOf(curr);
+          const next = kpiSteps[Math.max(0, idx - 1)];
+          resizeRef.current = { startX: e.clientX, startSpan: next };
+          setKpiSizes((prev) => ({ ...prev, [resizingCardId]: spanToKpiSize(next) }));
+        } else {
+          const curr = resizeRef.current.startSpan as 1 | 2 | 3;
+          const idx = chartSteps.indexOf(curr);
+          const next = chartSteps[Math.max(0, idx - 1)];
+          resizeRef.current = { startX: e.clientX, startSpan: next };
+          setChartSizes((prev) => ({ ...prev, [resizingCardId]: spanToChartSize(next) }));
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      const finalSpan = resizeRef.current.startSpan;
+      if (resizingType === "kpi" && resizingCardId) {
+        saveKpiSize(resizingCardId, spanToKpiSize(finalSpan as 1 | 2 | 4));
+      } else if (resizingType === "chart" && resizingCardId) {
+        saveChartSize(resizingCardId, spanToChartSize(finalSpan as 1 | 2 | 3));
+      }
+      setResizingCardId(null);
+      setResizingType(null);
+      document.body.style.userSelect = "";
+    };
+
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    window.addEventListener("mouseleave", handleMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+      window.removeEventListener("mouseleave", handleMouseUp);
+      document.body.style.userSelect = "";
+    };
+  }, [resizingCardId, resizingType, saveKpiSize, saveChartSize]);
 
   const [draggedChartId, setDraggedChartId] = useState<string | null>(null);
   const handleChartDragStart = (id: string) => setDraggedChartId(id);
@@ -499,16 +643,18 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* KPI Cards - reorderable in edit mode */}
         {dashboardEditMode && (
-          <p className="text-sm text-muted-foreground">Drag KPI and chart cards to change order. Click Done to save.</p>
+          <p className="text-sm text-muted-foreground">Drag cards to reorder; drag the right edge to resize width. Click Done to save.</p>
         )}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {kpiOrder.map((id) => {
             const content = getKpiCardContent(id);
             const isDragging = draggedKpiId === id;
+            const span = getKpiSpan(id);
+            const colClass = span === 4 ? "lg:col-span-4" : span === 2 ? "lg:col-span-2" : "lg:col-span-1";
             return (
               <Card
                 key={id}
-                className={isDragging ? "opacity-50" : ""}
+                className={`relative ${isDragging ? "opacity-50" : ""} ${colClass}`}
                 draggable={dashboardEditMode}
                 onDragStart={() => handleKpiDragStart(id)}
                 onDragOver={handleKpiDragOver}
@@ -532,20 +678,34 @@ export default function DashboardPage() {
                     </Button>
                   )}
                 </CardContent>
+                {dashboardEditMode && (
+                  <div
+                    data-no-drag
+                    className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 rounded-r border-l border-muted-foreground/30 bg-transparent hover:bg-primary/10"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleResizeStart("kpi", id, e.clientX, getKpiSpan(id));
+                    }}
+                    aria-label="Resize card"
+                  />
+                )}
               </Card>
             );
           })}
         </div>
 
-        {/* Charts & activity sections - reorderable in edit mode */}
-        <div className="space-y-6">
+        {/* Charts & activity sections - reorderable and resizable in edit mode */}
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {chartSectionOrder.map((id) => {
             const section = getChartSectionContent(id);
             const isDragging = draggedChartId === id;
+            const span = getChartSpan(id);
+            const colClass = span === 3 ? "lg:col-span-3" : span === 2 ? "lg:col-span-2" : "lg:col-span-1";
             return (
               <Card
                 key={id}
-                className={isDragging ? "opacity-50" : ""}
+                className={`relative ${isDragging ? "opacity-50" : ""} ${colClass}`}
                 draggable={dashboardEditMode}
                 onDragStart={() => handleChartDragStart(id)}
                 onDragOver={handleChartDragOver}
@@ -564,6 +724,18 @@ export default function DashboardPage() {
                   </div>
                 </CardHeader>
                 <CardContent>{section.content}</CardContent>
+                {dashboardEditMode && (
+                  <div
+                    data-no-drag
+                    className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize shrink-0 rounded-r border-l border-muted-foreground/30 bg-transparent hover:bg-primary/10"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      handleResizeStart("chart", id, e.clientX, getChartSpan(id));
+                    }}
+                    aria-label="Resize card"
+                  />
+                )}
               </Card>
             );
           })}

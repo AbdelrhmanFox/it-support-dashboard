@@ -36,13 +36,31 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, FileUp } from "lucide-react";
 import { createAsset, updateAsset } from "@/services/assets";
+import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+
+const ASSET_IMPORT_HEADERS = [
+  "asset_tag",
+  "serial_number",
+  "device_type",
+  "brand",
+  "model",
+  "status",
+  "assigned_user_name",
+  "assigned_user_email",
+  "department",
+  "location",
+  "notes",
+  "purchase_date",
+  "warranty_start",
+  "warranty_end",
+];
 
 const assetSchema = z.object({
   asset_tag: z.string().min(1, "Asset tag required"),
@@ -72,6 +90,11 @@ export default function AssetsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Asset | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetSchema),
@@ -189,6 +212,90 @@ export default function AssetsPage() {
     load();
   }
 
+  function openImportDialog() {
+    setImportFile(null);
+    setImportPreview([]);
+    setImportResult(null);
+    setImportDialogOpen(true);
+  }
+
+  async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportResult(null);
+    try {
+      const rows = await parseExcelFile(file);
+      setImportPreview(rows.slice(0, 5));
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: String(err) }] });
+    }
+  }
+
+  function handleDownloadAssetTemplate() {
+    downloadTemplate(ASSET_IMPORT_HEADERS, "Assets", "assets-import-template");
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) return;
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: "Your account is not assigned to a branch. Contact an administrator." }] });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    const errors: { row: number; message: string }[] = [];
+    let success = 0;
+    try {
+      const raw = await parseExcelFile(importFile);
+      const rows = raw.filter((r) => String(r.asset_tag ?? "").trim() || String(r.device_type ?? "").trim());
+      const validStatuses = ["active", "in_maintenance", "retired", "lost", "spare"];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const assetTag = String(row.asset_tag ?? "").trim();
+        const deviceType = String(row.device_type ?? "").trim();
+        if (!assetTag || !deviceType) {
+          errors.push({ row: i + 2, message: "asset_tag and device_type are required" });
+          continue;
+        }
+        const status = String(row.status ?? "active").trim() || "active";
+        if (!validStatuses.includes(status)) {
+          errors.push({ row: i + 2, message: `Invalid status: ${status}` });
+          continue;
+        }
+        try {
+          await createAsset({
+            asset_tag: assetTag,
+            serial_number: (row.serial_number != null && String(row.serial_number).trim()) || null,
+            device_type: deviceType,
+            brand: (row.brand != null && String(row.brand).trim()) || null,
+            model: (row.model != null && String(row.model).trim()) || null,
+            status,
+            assigned_user_name: (row.assigned_user_name != null && String(row.assigned_user_name).trim()) || null,
+            assigned_user_email: (row.assigned_user_email != null && String(row.assigned_user_email).trim()) || null,
+            department: (row.department != null && String(row.department).trim()) || null,
+            location: (row.location != null && String(row.location).trim()) || null,
+            notes: (row.notes != null && String(row.notes).trim()) || null,
+            purchase_date: (row.purchase_date != null && String(row.purchase_date).trim()) || null,
+            warranty_start: (row.warranty_start != null && String(row.warranty_start).trim()) || null,
+            warranty_end: (row.warranty_end != null && String(row.warranty_end).trim()) || null,
+            branch_id: branchId,
+          });
+          success++;
+        } catch (err) {
+          errors.push({ row: i + 2, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      setImportResult({ success, failed: errors.length, errors });
+      if (success > 0) load();
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: err instanceof Error ? err.message : String(err) }] });
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const statusVariants: Record<string, "default" | "secondary" | "destructive" | "outline" | "success" | "warning"> = {
     active: "success",
     in_maintenance: "warning",
@@ -211,10 +318,16 @@ export default function AssetsPage() {
             <CardDescription>Devices, assignment, and status</CardDescription>
           </div>
           {canEdit && (
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add asset
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={openImportDialog}>
+                <FileUp className="mr-2 h-4 w-4" />
+                Import from Excel
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add asset
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -298,6 +411,72 @@ export default function AssetsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import from Excel</DialogTitle>
+            <CardDescription>Upload an .xlsx file. First row should be headers. Download the template for the expected columns.</CardDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadAssetTemplate}>
+                Download template
+              </Button>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent">
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFileSelect} />
+                Choose file
+              </label>
+              {importFile && <span className="text-sm text-muted-foreground">{importFile.name}</span>}
+            </div>
+            {importPreview.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {ASSET_IMPORT_HEADERS.slice(0, 5).map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                      <TableHead>...</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importPreview.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {ASSET_IMPORT_HEADERS.slice(0, 5).map((h) => (
+                          <TableCell key={h}>{String(row[h] ?? "")}</TableCell>
+                        ))}
+                        <TableCell>—</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {importResult && (
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">Imported {importResult.success} assets. {importResult.failed} failed.</p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc text-destructive">
+                    {importResult.errors.slice(0, 10).map((e, i) => (
+                      <li key={i}>Row {e.row}: {e.message}</li>
+                    ))}
+                    {importResult.errors.length > 10 && <li>… and {importResult.errors.length - 10} more</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={handleImportSubmit} disabled={!importFile || importing}>
+                {importing ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">

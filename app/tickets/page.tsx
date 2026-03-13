@@ -31,7 +31,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, FileUp } from "lucide-react";
+import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -51,6 +52,18 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const TICKET_IMPORT_HEADERS = [
+  "ticket_number",
+  "requester_name",
+  "employee_id",
+  "email",
+  "department",
+  "issue_type",
+  "description",
+  "priority",
+  "status",
+];
+
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline" | "success" | "warning"> = {
   open: "destructive",
   in_progress: "warning",
@@ -66,6 +79,11 @@ export default function TicketsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -100,6 +118,105 @@ export default function TicketsPage() {
   useEffect(() => {
     load();
   }, [statusFilter, effectiveBranchId]);
+
+  function openImportDialog() {
+    setImportFile(null);
+    setImportPreview([]);
+    setImportResult(null);
+    setImportDialogOpen(true);
+  }
+
+  async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportResult(null);
+    try {
+      const rows = await parseExcelFile(file);
+      setImportPreview(rows.slice(0, 5));
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: String(err) }] });
+    }
+  }
+
+  function handleDownloadTicketTemplate() {
+    downloadTemplate(TICKET_IMPORT_HEADERS, "Tickets", "tickets-import-template");
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) return;
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: "Your account is not assigned to a branch. Contact an administrator." }] });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    const errors: { row: number; message: string }[] = [];
+    let success = 0;
+    const validPriority = ["low", "medium", "high", "urgent"];
+    const validStatus = ["open", "in_progress", "waiting_user", "resolved", "closed"];
+    try {
+      const raw = await parseExcelFile(importFile);
+      const rows = raw.filter(
+        (r) =>
+          String(r.requester_name ?? "").trim() ||
+          String(r.email ?? "").trim() ||
+          String(r.description ?? "").trim()
+      );
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const requesterName = String(row.requester_name ?? "").trim();
+        const email = String(row.email ?? "").trim();
+        const description = String(row.description ?? "").trim();
+        if (!requesterName || !email || !description) {
+          errors.push({ row: i + 2, message: "requester_name, email, and description are required" });
+          continue;
+        }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          errors.push({ row: i + 2, message: "Invalid email" });
+          continue;
+        }
+        const priority = String(row.priority ?? "medium").trim() || "medium";
+        const status = String(row.status ?? "open").trim() || "open";
+        if (!validPriority.includes(priority)) {
+          errors.push({ row: i + 2, message: `Invalid priority: ${priority}` });
+          continue;
+        }
+        if (!validStatus.includes(status)) {
+          errors.push({ row: i + 2, message: `Invalid status: ${status}` });
+          continue;
+        }
+        const ticketNumber = String(row.ticket_number ?? "").trim() || generateTicketNumber();
+        try {
+          await createTicket({
+            ticket_number: ticketNumber,
+            requester_name: requesterName,
+            employee_id: (row.employee_id != null && String(row.employee_id).trim()) || null,
+            email,
+            department: (row.department != null && String(row.department).trim()) || null,
+            issue_type: (row.issue_type != null && String(row.issue_type).trim()) || null,
+            description,
+            priority,
+            status,
+            assigned_to_id: null,
+            asset_id: null,
+            branch_id: branchId,
+            resolved_at: null,
+          });
+          success++;
+        } catch (err) {
+          errors.push({ row: i + 2, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      setImportResult({ success, failed: errors.length, errors });
+      if (success > 0) load();
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: err instanceof Error ? err.message : String(err) }] });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   function openCreate() {
     setCreateError(null);
@@ -157,10 +274,16 @@ export default function TicketsPage() {
             <CardDescription>Internal support requests</CardDescription>
           </div>
           {canEdit && (
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New ticket
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={openImportDialog}>
+                <FileUp className="mr-2 h-4 w-4" />
+                Import from Excel
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                New ticket
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -231,6 +354,70 @@ export default function TicketsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import from Excel</DialogTitle>
+            <CardDescription>Upload an .xlsx file. ticket_number is optional (auto-generated if empty). Download the template for the expected columns.</CardDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadTicketTemplate}>
+                Download template
+              </Button>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent">
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFileSelect} />
+                Choose file
+              </label>
+              {importFile && <span className="text-sm text-muted-foreground">{importFile.name}</span>}
+            </div>
+            {importPreview.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {TICKET_IMPORT_HEADERS.map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importPreview.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {TICKET_IMPORT_HEADERS.map((h) => (
+                          <TableCell key={h}>{String(row[h] ?? "")}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {importResult && (
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">Imported {importResult.success} tickets. {importResult.failed} failed.</p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc text-destructive">
+                    {importResult.errors.slice(0, 10).map((e, i) => (
+                      <li key={i}>Row {e.row}: {e.message}</li>
+                    ))}
+                    {importResult.errors.length > 10 && <li>… and {importResult.errors.length - 10} more</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={handleImportSubmit} disabled={!importFile || importing}>
+                {importing ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">

@@ -35,7 +35,8 @@ import {
   createSparePart,
   updateSparePart,
 } from "@/services/spare-parts";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, FileUp } from "lucide-react";
+import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import {
   Select,
   SelectContent,
@@ -43,6 +44,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+const SPARE_PART_IMPORT_HEADERS = [
+  "part_name",
+  "category",
+  "brand",
+  "model",
+  "sku",
+  "unit_price",
+  "supplier_name",
+  "current_stock",
+  "minimum_stock",
+  "reorder_level",
+  "notes",
+];
 
 export default function SparePartsPage() {
   const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
@@ -56,6 +71,11 @@ export default function SparePartsPage() {
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPart, setEditingPart] = useState<SparePart | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -82,6 +102,95 @@ export default function SparePartsPage() {
   useEffect(() => {
     load();
   }, [search, category, supplierId, lowStockOnly, effectiveBranchId]);
+
+  function openImportDialog() {
+    setImportFile(null);
+    setImportPreview([]);
+    setImportResult(null);
+    setImportDialogOpen(true);
+  }
+
+  async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportResult(null);
+    try {
+      const rows = await parseExcelFile(file);
+      setImportPreview(rows.slice(0, 5));
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: String(err) }] });
+    }
+  }
+
+  function handleDownloadSparePartTemplate() {
+    downloadTemplate(SPARE_PART_IMPORT_HEADERS, "SpareParts", "spare-parts-import-template");
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) return;
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: "Your account is not assigned to a branch. Contact an administrator." }] });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    const errors: { row: number; message: string }[] = [];
+    let success = 0;
+    try {
+      const raw = await parseExcelFile(importFile);
+      const rows = raw.filter((r) => String(r.part_name ?? "").trim());
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const partName = String(row.part_name ?? "").trim();
+        if (!partName) {
+          errors.push({ row: i + 2, message: "part_name is required" });
+          continue;
+        }
+        let supplierId: string | null = null;
+        const supplierName = (row.supplier_name != null && String(row.supplier_name).trim()) || null;
+        if (supplierName) {
+          const found = suppliers.find((s) => s.name.trim().toLowerCase() === supplierName.toLowerCase());
+          if (!found) {
+            errors.push({ row: i + 2, message: `Supplier not found: ${supplierName}` });
+            continue;
+          }
+          supplierId = found.id;
+        }
+        const unitPrice = Number(row.unit_price);
+        const currentStock = Number(row.current_stock);
+        const minimumStock = Number(row.minimum_stock);
+        const reorderLevel = Number(row.reorder_level);
+        try {
+          await createSparePart({
+            part_name: partName,
+            category: (row.category != null && String(row.category).trim()) || null,
+            brand: (row.brand != null && String(row.brand).trim()) || null,
+            model: (row.model != null && String(row.model).trim()) || null,
+            compatible_devices: null,
+            sku: (row.sku != null && String(row.sku).trim()) || null,
+            unit_price: Number.isFinite(unitPrice) ? unitPrice : 0,
+            supplier_id: supplierId,
+            current_stock: Number.isFinite(currentStock) ? currentStock : 0,
+            minimum_stock: Number.isFinite(minimumStock) ? minimumStock : 0,
+            reorder_level: Number.isFinite(reorderLevel) ? reorderLevel : 0,
+            notes: (row.notes != null && String(row.notes).trim()) || null,
+            branch_id: branchId,
+          });
+          success++;
+        } catch (err) {
+          errors.push({ row: i + 2, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      setImportResult({ success, failed: errors.length, errors });
+      if (success > 0) load();
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: err instanceof Error ? err.message : String(err) }] });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function handleSubmit(values: SparePartFormValues) {
     const branchId = effectiveBranchId ?? userBranchId ?? null;
@@ -129,10 +238,16 @@ export default function SparePartsPage() {
               <CardDescription>Manage parts, stock levels, and suppliers</CardDescription>
             </div>
             {canEdit && (
-              <Button onClick={() => { setEditingPart(null); setCreateError(null); setDialogOpen(true); }}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add part
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={openImportDialog}>
+                  <FileUp className="mr-2 h-4 w-4" />
+                  Import from Excel
+                </Button>
+                <Button onClick={() => { setEditingPart(null); setCreateError(null); setDialogOpen(true); }}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add part
+                </Button>
+              </div>
             )}
           </CardHeader>
           <CardContent className="space-y-4">
@@ -256,6 +371,72 @@ export default function SparePartsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import from Excel</DialogTitle>
+            <CardDescription>Upload an .xlsx file. Use supplier_name to match existing suppliers in this branch. Download the template for the expected columns.</CardDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadSparePartTemplate}>
+                Download template
+              </Button>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent">
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFileSelect} />
+                Choose file
+              </label>
+              {importFile && <span className="text-sm text-muted-foreground">{importFile.name}</span>}
+            </div>
+            {importPreview.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {SPARE_PART_IMPORT_HEADERS.slice(0, 5).map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                      <TableHead>...</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importPreview.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {SPARE_PART_IMPORT_HEADERS.slice(0, 5).map((h) => (
+                          <TableCell key={h}>{String(row[h] ?? "")}</TableCell>
+                        ))}
+                        <TableCell>—</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {importResult && (
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">Imported {importResult.success} parts. {importResult.failed} failed.</p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc text-destructive">
+                    {importResult.errors.slice(0, 10).map((e, i) => (
+                      <li key={i}>Row {e.row}: {e.message}</li>
+                    ))}
+                    {importResult.errors.length > 10 && <li>… and {importResult.errors.length - 10} more</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={handleImportSubmit} disabled={!importFile || importing}>
+                {importing ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">

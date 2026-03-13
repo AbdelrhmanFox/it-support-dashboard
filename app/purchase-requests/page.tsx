@@ -45,7 +45,8 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, FileUp } from "lucide-react";
+import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -60,6 +61,17 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const PURCHASE_REQUEST_IMPORT_HEADERS = [
+  "request_number",
+  "spare_part_sku",
+  "supplier_name",
+  "quantity",
+  "request_date",
+  "status",
+  "expected_delivery_date",
+  "notes",
+];
 
 const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline" | "success" | "warning"> = {
   draft: "secondary",
@@ -79,6 +91,11 @@ export default function PurchaseRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -116,6 +133,112 @@ export default function PurchaseRequestsPage() {
   useEffect(() => {
     load();
   }, [statusFilter, effectiveBranchId]);
+
+  function openImportDialog() {
+    setImportFile(null);
+    setImportPreview([]);
+    setImportResult(null);
+    setImportDialogOpen(true);
+  }
+
+  async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportResult(null);
+    try {
+      const rows = await parseExcelFile(file);
+      setImportPreview(rows.slice(0, 5));
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: String(err) }] });
+    }
+  }
+
+  function handleDownloadPurchaseRequestTemplate() {
+    downloadTemplate(PURCHASE_REQUEST_IMPORT_HEADERS, "PurchaseRequests", "purchase-requests-import-template");
+  }
+
+  async function handleImportSubmit() {
+    if (!importFile) return;
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: "Your account is not assigned to a branch. Contact an administrator." }] });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    const errors: { row: number; message: string }[] = [];
+    let success = 0;
+    const validStatuses = ["draft", "submitted", "ordered", "waiting_supplier", "delivered", "cancelled"];
+    try {
+      const raw = await parseExcelFile(importFile);
+      const rows = raw.filter(
+        (r) =>
+          String(r.spare_part_sku ?? r.part_name ?? "").trim() ||
+          String(r.supplier_name ?? "").trim() ||
+          Number(r.quantity) > 0
+      );
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const partSku = String(row.spare_part_sku ?? row.part_name ?? "").trim();
+        const supplierName = String(row.supplier_name ?? "").trim();
+        const qty = Number(row.quantity);
+        if (!partSku || !supplierName) {
+          errors.push({ row: i + 2, message: "spare_part_sku and supplier_name are required" });
+          continue;
+        }
+        if (!Number.isFinite(qty) || qty < 1) {
+          errors.push({ row: i + 2, message: "quantity must be at least 1" });
+          continue;
+        }
+        const part = parts.find(
+          (p) =>
+            (p.sku && p.sku.trim().toLowerCase() === partSku.toLowerCase()) ||
+            p.part_name.trim().toLowerCase() === partSku.toLowerCase()
+        );
+        const supplier = suppliers.find((s) => s.name.trim().toLowerCase() === supplierName.toLowerCase());
+        if (!part) {
+          errors.push({ row: i + 2, message: `Part not found: ${partSku}` });
+          continue;
+        }
+        if (!supplier) {
+          errors.push({ row: i + 2, message: `Supplier not found: ${supplierName}` });
+          continue;
+        }
+        const status = String(row.status ?? "draft").trim() || "draft";
+        if (!validStatuses.includes(status)) {
+          errors.push({ row: i + 2, message: `Invalid status: ${status}` });
+          continue;
+        }
+        const requestDate = String(row.request_date ?? "").trim() || new Date().toISOString().slice(0, 10);
+        const requestNumber = String(row.request_number ?? "").trim() || generateRequestNumber();
+        try {
+          await createPurchaseRequest({
+            request_number: requestNumber,
+            spare_part_id: part.id,
+            quantity: qty,
+            supplier_id: supplier.id,
+            status,
+            expected_delivery_date: (row.expected_delivery_date != null && String(row.expected_delivery_date).trim()) || null,
+            notes: (row.notes != null && String(row.notes).trim()) || null,
+            requested_by_id: null,
+            request_date: requestDate,
+            actual_delivery_date: null,
+            branch_id: branchId,
+          });
+          success++;
+        } catch (err) {
+          errors.push({ row: i + 2, message: err instanceof Error ? err.message : String(err) });
+        }
+      }
+      setImportResult({ success, failed: errors.length, errors });
+      if (success > 0) load();
+    } catch (err) {
+      setImportResult({ success: 0, failed: 0, errors: [{ row: 0, message: err instanceof Error ? err.message : String(err) }] });
+    } finally {
+      setImporting(false);
+    }
+  }
 
   function openCreate() {
     setCreateError(null);
@@ -168,10 +291,16 @@ export default function PurchaseRequestsPage() {
             <CardDescription>Track orders to suppliers</CardDescription>
           </div>
           {canEdit && (
-            <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" />
-              New request
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={openImportDialog}>
+                <FileUp className="mr-2 h-4 w-4" />
+                Import from Excel
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="mr-2 h-4 w-4" />
+                New request
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-4">
@@ -243,6 +372,70 @@ export default function PurchaseRequestsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import from Excel</DialogTitle>
+            <CardDescription>Use spare_part_sku (or part name) and supplier_name to match parts and suppliers in this branch. request_number and request_date are optional.</CardDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={handleDownloadPurchaseRequestTemplate}>
+                Download template
+              </Button>
+              <label className="flex cursor-pointer items-center gap-2 rounded-md border border-input px-3 py-2 text-sm hover:bg-accent">
+                <input type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFileSelect} />
+                Choose file
+              </label>
+              {importFile && <span className="text-sm text-muted-foreground">{importFile.name}</span>}
+            </div>
+            {importPreview.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-md border">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {PURCHASE_REQUEST_IMPORT_HEADERS.map((h) => (
+                        <TableHead key={h}>{h}</TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {importPreview.map((row, idx) => (
+                      <TableRow key={idx}>
+                        {PURCHASE_REQUEST_IMPORT_HEADERS.map((h) => (
+                          <TableCell key={h}>{String(row[h] ?? "")}</TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+            {importResult && (
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">Imported {importResult.success} requests. {importResult.failed} failed.</p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 list-inside list-disc text-destructive">
+                    {importResult.errors.slice(0, 10).map((e, i) => (
+                      <li key={i}>Row {e.row}: {e.message}</li>
+                    ))}
+                    {importResult.errors.length > 10 && <li>… and {importResult.errors.length - 10} more</li>}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setImportDialogOpen(false)}>
+                Close
+              </Button>
+              <Button type="button" onClick={handleImportSubmit} disabled={!importFile || importing}>
+                {importing ? "Importing…" : "Import"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
