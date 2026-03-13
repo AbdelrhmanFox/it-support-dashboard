@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useBranch } from "@/components/branch-provider";
 import { BranchSwitcher } from "@/components/branch-switcher";
+import { RoleBadge } from "@/components/role-badge";
 
 export interface NavItem {
   title: string;
@@ -99,17 +100,23 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
-  const { branchLabel } = useBranch();
+  const { branchLabel, role } = useBranch();
+
+  const roleLabel = role === "admin" ? "Company-wide" : role === "support" ? "Branch support" : "View only";
 
   return (
     <>
       {/* Desktop sidebar: hidden on small screens */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r bg-card lg:flex">
-        <div className="flex h-16 flex-col justify-center border-b px-4">
+        <div className="flex h-auto min-h-16 flex-col justify-center border-b px-4 py-3">
           <Link href="/" className="flex items-center gap-2 font-semibold">
-            <Monitor className="h-6 w-6 text-primary" />
-            <span className="text-lg">{branchLabel} Support</span>
+            <Monitor className="h-6 w-6 shrink-0 text-primary" />
+            <span className="text-lg leading-tight">{branchLabel} Support</span>
           </Link>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <RoleBadge className="text-xs" />
+            <span className="text-xs text-muted-foreground">{roleLabel}</span>
+          </div>
           <div className="mt-2">
             <BranchSwitcher />
           </div>
@@ -138,19 +145,25 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
-        <div className="flex h-16 items-center justify-between border-b px-4">
-          <Link href="/" className="flex items-center gap-2 font-semibold" onClick={onMobileClose}>
-            <Monitor className="h-6 w-6 text-primary" />
-            <span className="text-lg">{branchLabel} Support</span>
-          </Link>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onMobileClose}
-            aria-label="Close menu"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+        <div className="flex min-h-16 flex-col justify-center gap-1 border-b px-4 py-3">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-2 font-semibold" onClick={onMobileClose}>
+              <Monitor className="h-6 w-6 shrink-0 text-primary" />
+              <span className="text-lg">{branchLabel} Support</span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onMobileClose}
+              aria-label="Close menu"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <RoleBadge className="text-xs" />
+            <span className="text-xs text-muted-foreground">{roleLabel}</span>
+          </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} onLinkClick={onMobileClose} />

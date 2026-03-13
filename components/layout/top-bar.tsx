@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { NotificationDropdown } from "@/components/layout/notification-dropdown";
 import { useLocale } from "@/components/locale-provider";
 import { BranchSwitcher } from "@/components/branch-switcher";
+import { useBranch } from "@/components/branch-provider";
+import { RoleBadge } from "@/components/role-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +30,7 @@ interface TopBarProps {
 export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarProps) {
   const { setTheme } = useTheme();
   const { setLocale } = useLocale();
+  const { role, branchLabel } = useBranch();
   const router = useRouter();
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
@@ -66,6 +69,7 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
       <div className="flex flex-1 items-center gap-2">
         <h1 className="text-xl font-semibold">{title}</h1>
         <BranchSwitcher />
+        <RoleBadge className="shrink-0" />
       </div>
 
       <div className="flex items-center gap-2">
@@ -107,9 +111,15 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
                 <User className="h-5 w-5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <div className="px-2 py-1.5 text-sm text-muted-foreground">
-                {user.email}
+            <DropdownMenuContent align="end" className="w-56">
+              <div className="px-2 py-1.5 text-sm font-medium">{user.email}</div>
+              <div className="px-2 pb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+                <RoleBadge />
+                {role === "admin" ? (
+                  <span>• All branches</span>
+                ) : (
+                  <span>• {branchLabel}</span>
+                )}
               </div>
               <DropdownMenuItem onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />

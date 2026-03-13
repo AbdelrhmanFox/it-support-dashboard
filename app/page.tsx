@@ -42,7 +42,7 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
-  const { effectiveBranchId } = useBranch();
+  const { effectiveBranchId, role, branchLabel, isAdmin } = useBranch();
   const [counts, setCounts] = useState<CountsType | null>(null);
   const [ticketsPerMonth, setTicketsPerMonth] = useState<TicketsPerMonthItem[]>([]);
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatusItem[]>([]);
@@ -118,6 +118,12 @@ export default function DashboardPage() {
     );
   }
 
+  const welcomeRoleText = isAdmin
+    ? "Viewing company-wide data. Use the branch filter to narrow down."
+    : role === "viewer"
+      ? `Read-only access to ${branchLabel}. Contact support to request changes.`
+      : `Viewing ${branchLabel} data.`;
+
   return (
     <DashboardLayout title="Dashboard">
       {dataError && (
@@ -125,6 +131,9 @@ export default function DashboardPage() {
           <strong>Demo mode.</strong> No database connected. Add Supabase URL and anon key in Netlify environment variables, then run <code className="rounded bg-muted px-1">database/schema.sql</code> in Supabase SQL Editor to see real data.
         </div>
       )}
+      <div className="mb-4 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        {welcomeRoleText}
+      </div>
       <div className="space-y-6">
         {/* KPI Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

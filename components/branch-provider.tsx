@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createClient } from "@/lib/supabase/client";
 import { getBranches, type Branch } from "@/services/branches";
 import { getCurrentUserProfile } from "@/services/profile";
 
@@ -17,6 +18,8 @@ interface BranchContextValue {
   userBranchId: string | null;
   role: UserRole | null;
   isAdmin: boolean;
+  /** Can create/edit/delete (admin and support; viewer is read-only) */
+  canEdit: boolean;
   /** Display label for current branch filter */
   branchLabel: string;
   loading: boolean;
@@ -27,6 +30,7 @@ const BranchContext = React.createContext<BranchContextValue | null>(null);
 const STORAGE_KEY = "it-support-selected-branch-id";
 
 export function BranchProvider({ children }: { children: React.ReactNode }) {
+  const [authUserId, setAuthUserId] = React.useState<string | null>(null);
   const [branches, setBranches] = React.useState<Branch[]>([]);
   const [profile, setProfile] = React.useState<Awaited<ReturnType<typeof getCurrentUserProfile>>>(null);
   const [selectedBranchId, setSelectedBranchIdState] = React.useState<string | null>(null);
@@ -40,8 +44,31 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Refetch profile when auth user changes (login/logout/switch user)
+  const [authChecked, setAuthChecked] = React.useState(false);
   React.useEffect(() => {
+    const supabase = createClient();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setAuthUserId(session?.user?.id ?? null);
+      setAuthChecked(true);
+    });
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAuthUserId(user?.id ?? null);
+      setAuthChecked(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  React.useEffect(() => {
+    if (!authChecked) return;
     let cancelled = false;
+    setLoading(true);
+    if (!authUserId) {
+      setProfile(null);
+      setBranches([]);
+      setLoading(false);
+      return;
+    }
     async function load() {
       try {
         const [branchList, prof] = await Promise.all([
@@ -65,10 +92,11 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [authUserId]);
 
   const role = (profile?.role as UserRole) ?? null;
   const isAdmin = role === "admin";
+  const canEdit = role === "admin" || role === "support";
   const userBranchId = profile?.branch_id ?? null;
 
   const effectiveBranchId = isAdmin ? selectedBranchId : userBranchId;
@@ -78,7 +106,9 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
       const b = branches.find((x) => x.id === effectiveBranchId);
       return b ? b.name : "Branch";
     }
-    return "All Branches";
+    // "All Branches" only for admin; support/viewer never see it
+    if (isAdmin) return "All Branches";
+    return "IT"; // support/viewer with no branch: header shows "IT Support"
   })();
 
   const value: BranchContextValue = {
@@ -89,6 +119,7 @@ export function BranchProvider({ children }: { children: React.ReactNode }) {
     userBranchId,
     role,
     isAdmin,
+    canEdit,
     branchLabel,
     loading,
   };
@@ -110,8 +141,9 @@ export function useBranch() {
       effectiveBranchId: null,
       userBranchId: null,
       role: null,
-      isAdmin: true,
-      branchLabel: "All Branches",
+      isAdmin: false,
+      canEdit: false,
+      branchLabel: "Support",
       loading: false,
     };
   }

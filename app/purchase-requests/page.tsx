@@ -71,7 +71,8 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function PurchaseRequestsPage() {
-  const { effectiveBranchId, userBranchId } = useBranch();
+  const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
+  const [createError, setCreateError] = useState<string | null>(null);
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [parts, setParts] = useState<Awaited<ReturnType<typeof getSpareParts>>>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
@@ -117,6 +118,7 @@ export default function PurchaseRequestsPage() {
   }, [statusFilter, effectiveBranchId]);
 
   function openCreate() {
+    setCreateError(null);
     form.reset({
       request_number: generateRequestNumber(),
       spare_part_id: "",
@@ -129,6 +131,12 @@ export default function PurchaseRequestsPage() {
   }
 
   async function onSubmit(values: FormValues) {
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setCreateError("Your account is not assigned to a branch. Contact an administrator.");
+      return;
+    }
+    setCreateError(null);
     await createPurchaseRequest({
       request_number: values.request_number,
       spare_part_id: values.spare_part_id,
@@ -140,7 +148,7 @@ export default function PurchaseRequestsPage() {
       requested_by_id: null,
       request_date: new Date().toISOString().slice(0, 10),
       actual_delivery_date: null,
-      branch_id: effectiveBranchId ?? userBranchId ?? null,
+      branch_id: branchId,
     });
     setDialogOpen(false);
     load();
@@ -148,16 +156,23 @@ export default function PurchaseRequestsPage() {
 
   return (
     <DashboardLayout title="Purchase Requests">
+      {!canEdit && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          View only. Contact an administrator or support to create purchase requests.
+        </p>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle>Purchase requests</CardTitle>
             <CardDescription>Track orders to suppliers</CardDescription>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            New request
-          </Button>
+          {canEdit && (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              New request
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -235,6 +250,11 @@ export default function PurchaseRequestsPage() {
             <DialogTitle>New purchase request</DialogTitle>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {createError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {createError}
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Request number</Label>
               <Input {...form.register("request_number")} readOnly />

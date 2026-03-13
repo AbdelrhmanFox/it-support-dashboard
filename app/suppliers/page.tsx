@@ -48,7 +48,7 @@ const supplierSchema = z.object({
 type SupplierFormValues = z.infer<typeof supplierSchema>;
 
 export default function SuppliersPage() {
-  const { effectiveBranchId, userBranchId } = useBranch();
+  const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -110,6 +110,11 @@ export default function SuppliersPage() {
 
   async function onSubmit(values: SupplierFormValues) {
     setFormError(null);
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!editing && !isAdmin && !branchId) {
+      setFormError("Your account is not assigned to a branch. Contact an administrator.");
+      return;
+    }
     const payload = {
       name: values.name,
       contact_person: values.contact_person || null,
@@ -117,7 +122,7 @@ export default function SuppliersPage() {
       email: values.email || null,
       sla_days: values.sla_days,
       notes: values.notes || null,
-      branch_id: effectiveBranchId ?? userBranchId ?? null,
+      branch_id: branchId,
     };
     try {
       if (editing) {
@@ -141,16 +146,23 @@ export default function SuppliersPage() {
 
   return (
     <DashboardLayout title="Suppliers">
+      {!canEdit && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          View only. Contact an administrator or support to add or edit suppliers.
+        </p>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle>Suppliers</CardTitle>
             <CardDescription>Manage supplier contacts and SLA</CardDescription>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add supplier
-          </Button>
+          {canEdit && (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add supplier
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="relative max-w-sm">
@@ -197,9 +209,11 @@ export default function SuppliersPage() {
                         <TableCell>{s.email ?? "—"}</TableCell>
                         <TableCell>{s.sla_days}</TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
-                            Edit
-                          </Button>
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(s)}>
+                              Edit
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))

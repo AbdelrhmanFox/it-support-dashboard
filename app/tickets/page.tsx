@@ -60,11 +60,12 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function TicketsPage() {
-  const { effectiveBranchId } = useBranch();
+  const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -101,6 +102,7 @@ export default function TicketsPage() {
   }, [statusFilter, effectiveBranchId]);
 
   function openCreate() {
+    setCreateError(null);
     form.reset({
       ticket_number: generateTicketNumber(),
       requester_name: "",
@@ -116,6 +118,12 @@ export default function TicketsPage() {
   }
 
   async function onSubmit(values: FormValues) {
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setCreateError("Your account is not assigned to a branch. Contact an administrator.");
+      return;
+    }
+    setCreateError(null);
     await createTicket({
       ticket_number: values.ticket_number,
       requester_name: values.requester_name,
@@ -128,7 +136,7 @@ export default function TicketsPage() {
       status: values.status,
       assigned_to_id: null,
       asset_id: null,
-      branch_id: effectiveBranchId ?? null,
+      branch_id: branchId,
       resolved_at: null,
     });
     setDialogOpen(false);
@@ -137,16 +145,23 @@ export default function TicketsPage() {
 
   return (
     <DashboardLayout title="Tickets">
+      {!canEdit && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          View only. Contact an administrator or support to create or update tickets.
+        </p>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle>Tickets</CardTitle>
             <CardDescription>Internal support requests</CardDescription>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            New ticket
-          </Button>
+          {canEdit && (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              New ticket
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -223,6 +238,11 @@ export default function TicketsPage() {
             <DialogTitle>New ticket</DialogTitle>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {createError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {createError}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Requester name *</Label>

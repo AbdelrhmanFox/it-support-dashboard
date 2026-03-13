@@ -10,9 +10,10 @@ import {
 import { useBranch } from "@/components/branch-provider";
 
 export function BranchSwitcher() {
-  const { branches, selectedBranchId, setSelectedBranchId, isAdmin } = useBranch();
+  const { branches, selectedBranchId, setSelectedBranchId, role } = useBranch();
 
-  if (!isAdmin || branches.length === 0) return null;
+  // Only admins see the branch switcher; support/viewer and loading (role null) never see it
+  if (role !== "admin" || branches.length === 0) return null;
 
   return (
     <Select

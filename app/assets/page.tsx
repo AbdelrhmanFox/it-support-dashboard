@@ -64,7 +64,8 @@ const assetSchema = z.object({
 type AssetFormValues = z.infer<typeof assetSchema>;
 
 export default function AssetsPage() {
-  const { effectiveBranchId, userBranchId } = useBranch();
+  const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
+  const [createError, setCreateError] = useState<string | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -114,6 +115,7 @@ export default function AssetsPage() {
 
   function openCreate() {
     setEditing(null);
+    setCreateError(null);
     form.reset({
       asset_tag: "",
       serial_number: "",
@@ -155,6 +157,12 @@ export default function AssetsPage() {
   }
 
   async function onSubmit(values: AssetFormValues) {
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!isAdmin && !branchId) {
+      setCreateError("Your account is not assigned to a branch. Contact an administrator.");
+      return;
+    }
+    setCreateError(null);
     const payload = {
       asset_tag: values.asset_tag,
       serial_number: values.serial_number || null,
@@ -170,7 +178,7 @@ export default function AssetsPage() {
       purchase_date: values.purchase_date || null,
       warranty_start: values.warranty_start || null,
       warranty_end: values.warranty_end || null,
-      branch_id: effectiveBranchId ?? userBranchId ?? null,
+      branch_id: branchId,
     };
     if (editing) {
       await updateAsset(editing.id, payload);
@@ -191,16 +199,23 @@ export default function AssetsPage() {
 
   return (
     <DashboardLayout title="Assets">
+      {!canEdit && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          View only. Contact an administrator or support to add or edit assets.
+        </p>
+      )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <div>
             <CardTitle>IT Assets</CardTitle>
             <CardDescription>Devices, assignment, and status</CardDescription>
           </div>
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add asset
-          </Button>
+          {canEdit && (
+            <Button onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add asset
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-wrap gap-4">
@@ -268,9 +283,11 @@ export default function AssetsPage() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                            Edit
-                          </Button>
+                          {canEdit && (
+                            <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                              Edit
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
@@ -288,6 +305,11 @@ export default function AssetsPage() {
             <DialogTitle>{editing ? "Edit asset" : "Add asset"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {createError && (
+              <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {createError}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Asset tag *</Label>

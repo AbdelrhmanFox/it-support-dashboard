@@ -45,7 +45,8 @@ import {
 } from "@/components/ui/select";
 
 export default function SparePartsPage() {
-  const { effectiveBranchId, userBranchId } = useBranch();
+  const { effectiveBranchId, userBranchId, isAdmin, canEdit } = useBranch();
+  const [createError, setCreateError] = useState<string | null>(null);
   const [parts, setParts] = useState<SparePart[]>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +84,12 @@ export default function SparePartsPage() {
   }, [search, category, supplierId, lowStockOnly, effectiveBranchId]);
 
   async function handleSubmit(values: SparePartFormValues) {
+    const branchId = effectiveBranchId ?? userBranchId ?? null;
+    if (!editingPart && !isAdmin && !branchId) {
+      setCreateError("Your account is not assigned to a branch. Contact an administrator.");
+      return;
+    }
+    setCreateError(null);
     const payload = {
       ...values,
       supplier_id: values.supplier_id || null,
@@ -93,7 +100,7 @@ export default function SparePartsPage() {
       sku: values.sku || null,
       notes: values.notes || null,
       image_url: null,
-      branch_id: effectiveBranchId ?? userBranchId ?? null,
+      branch_id: branchId,
     };
     if (editingPart) {
       await updateSparePart(editingPart.id, payload);
@@ -109,6 +116,11 @@ export default function SparePartsPage() {
 
   return (
     <DashboardLayout title="Spare Parts">
+      {!canEdit && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          View only. Contact an administrator or support to add or edit parts.
+        </p>
+      )}
       <div className="space-y-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -116,10 +128,12 @@ export default function SparePartsPage() {
               <CardTitle>Spare parts</CardTitle>
               <CardDescription>Manage parts, stock levels, and suppliers</CardDescription>
             </div>
-            <Button onClick={() => { setEditingPart(null); setDialogOpen(true); }}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add part
-            </Button>
+            {canEdit && (
+              <Button onClick={() => { setEditingPart(null); setCreateError(null); setDialogOpen(true); }}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add part
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap items-center gap-4">
@@ -219,16 +233,18 @@ export default function SparePartsPage() {
                             {part.unit_price != null ? Number(part.unit_price).toFixed(2) : "—"}
                           </TableCell>
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                setEditingPart(part);
-                                setDialogOpen(true);
-                              }}
-                            >
-                              Edit
-                            </Button>
+                            {canEdit && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingPart(part);
+                                  setDialogOpen(true);
+                                }}
+                              >
+                                Edit
+                              </Button>
+                            )}
                           </TableCell>
                         </TableRow>
                       ))
@@ -246,6 +262,11 @@ export default function SparePartsPage() {
           <DialogHeader>
             <DialogTitle>{editingPart ? "Edit part" : "Add spare part"}</DialogTitle>
           </DialogHeader>
+          {createError && (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {createError}
+            </div>
+          )}
           <SparePartForm
             part={editingPart}
             suppliers={suppliers}
