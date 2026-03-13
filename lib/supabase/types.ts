@@ -77,6 +77,7 @@ export interface Database {
           reorder_level: number;
           notes: string | null;
           image_url: string | null;
+          is_consumable: boolean;
           branch_id: string | null;
           created_at: string;
           updated_at: string;
@@ -115,6 +116,15 @@ export interface Database {
           updated_at?: string;
         };
         Update: Partial<Database["public"]["Tables"]["assets"]["Insert"]>;
+      };
+      spare_part_assets: {
+        Row: {
+          spare_part_id: string;
+          asset_id: string;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["spare_part_assets"]["Row"], "created_at"> & { created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["spare_part_assets"]["Insert"]>;
       };
       stock_transactions: {
         Row: {

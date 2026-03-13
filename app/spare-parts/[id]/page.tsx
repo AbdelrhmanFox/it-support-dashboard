@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getSparePartById } from "@/services/spare-parts";
+import { getSparePartById, getLinkedAssetsForSparePart } from "@/services/spare-parts";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +13,10 @@ interface PageProps {
 
 export default async function SparePartDetailPage({ params }: PageProps) {
   const { id } = await params;
-  const part = await getSparePartById(id);
+  const [part, linkedAssets] = await Promise.all([
+    getSparePartById(id),
+    getLinkedAssetsForSparePart(id),
+  ]);
   if (!part) notFound();
 
   const supplierName = (part.suppliers as { name?: string } | null)?.name ?? null;
@@ -31,6 +34,9 @@ export default async function SparePartDetailPage({ params }: PageProps) {
           <h2 className="text-2xl font-semibold">{part.part_name}</h2>
           {isLowStock && (
             <Badge variant="destructive">Low stock</Badge>
+          )}
+          {part.is_consumable && (
+            <Badge variant="secondary">One-time use</Badge>
           )}
         </div>
 
@@ -59,13 +65,25 @@ export default async function SparePartDetailPage({ params }: PageProps) {
           </Card>
         </div>
 
-        {part.compatible_devices && (
+        {linkedAssets.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle>Compatible devices</CardTitle>
+              <CardTitle>Device assets</CardTitle>
             </CardHeader>
-            <CardContent className="text-sm text-muted-foreground">
-              {part.compatible_devices}
+            <CardContent>
+              <ul className="space-y-2 text-sm">
+                {linkedAssets.map((asset) => (
+                  <li key={asset.id}>
+                    <Link href={`/assets/${asset.id}`} className="hover:underline font-medium">
+                      {asset.asset_tag}
+                    </Link>
+                    {asset.serial_number && (
+                      <span className="text-muted-foreground ml-2">SN: {asset.serial_number}</span>
+                    )}
+                    <span className="text-muted-foreground ml-2">{asset.device_type}</span>
+                  </li>
+                ))}
+              </ul>
             </CardContent>
           </Card>
         )}

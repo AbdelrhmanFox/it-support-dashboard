@@ -30,11 +30,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { SparePartForm, type SparePartFormValues } from "@/modules/spare-parts/spare-part-form";
+import { SparePartForm, type SparePartFormSubmitPayload } from "@/modules/spare-parts/spare-part-form";
 import {
   createSparePart,
   updateSparePart,
+  getLinkedAssetIdsForSparePart,
+  setLinkedAssetsForSparePart,
 } from "@/services/spare-parts";
+import { getAssets } from "@/services/assets";
 import { Plus, Search, FileUp } from "lucide-react";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import {
@@ -56,6 +59,7 @@ const SPARE_PART_IMPORT_HEADERS = [
   "current_stock",
   "minimum_stock",
   "reorder_level",
+  "is_consumable",
   "notes",
 ];
 
@@ -64,6 +68,8 @@ export default function SparePartsPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [parts, setParts] = useState<SparePart[]>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
+  const [assets, setAssets] = useState<Awaited<ReturnType<typeof getAssets>>>([]);
+  const [linkedAssetIdsForForm, setLinkedAssetIdsForForm] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState<string>("all");
@@ -80,7 +86,7 @@ export default function SparePartsPage() {
   async function load() {
     setLoading(true);
     try {
-      const [partsRes, suppliersRes] = await Promise.all([
+      const [partsRes, suppliersRes, assetsRes] = await Promise.all([
         getSpareParts({
           search: search || undefined,
           category: category === "all" ? undefined : category,
@@ -89,15 +95,25 @@ export default function SparePartsPage() {
           branchId: effectiveBranchId ?? undefined,
         }),
         getSuppliers({ branchId: effectiveBranchId ?? undefined }),
+        getAssets({ branchId: effectiveBranchId ?? undefined }),
       ]);
       setParts(partsRes);
       setSuppliers(suppliersRes);
+      setAssets(assetsRes);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    if (dialogOpen && editingPart) {
+      getLinkedAssetIdsForSparePart(editingPart.id).then(setLinkedAssetIdsForForm).catch(() => setLinkedAssetIdsForForm([]));
+    } else if (dialogOpen && !editingPart) {
+      setLinkedAssetIdsForForm([]);
+    }
+  }, [dialogOpen, editingPart]);
 
   useEffect(() => {
     load();
@@ -162,6 +178,8 @@ export default function SparePartsPage() {
         const currentStock = Number(row.current_stock);
         const minimumStock = Number(row.minimum_stock);
         const reorderLevel = Number(row.reorder_level);
+        const isConsumableRaw = row.is_consumable ?? row.one_time_use ?? "";
+        const isConsumable = /^(1|true|yes)$/i.test(String(isConsumableRaw).trim());
         try {
           await createSparePart({
             part_name: partName,
@@ -177,6 +195,7 @@ export default function SparePartsPage() {
             reorder_level: Number.isFinite(reorderLevel) ? reorderLevel : 0,
             notes: (row.notes != null && String(row.notes).trim()) || null,
             image_url: null,
+            is_consumable: isConsumable,
             branch_id: branchId,
           });
           success++;
@@ -193,30 +212,36 @@ export default function SparePartsPage() {
     }
   }
 
-  async function handleSubmit(values: SparePartFormValues) {
+  async function handleSubmit(values: SparePartFormSubmitPayload) {
     const branchId = effectiveBranchId ?? userBranchId ?? null;
     if (!editingPart && !isAdmin && !branchId) {
       setCreateError("Your account is not assigned to a branch. Contact an administrator.");
       return;
     }
     setCreateError(null);
+    const { linked_asset_ids, ...rest } = values;
     const payload = {
-      ...values,
+      ...rest,
       supplier_id: values.supplier_id || null,
       category: values.category || null,
       brand: values.brand || null,
       model: values.model || null,
-      compatible_devices: values.compatible_devices || null,
+      compatible_devices: null,
       sku: values.sku || null,
       notes: values.notes || null,
       image_url: null,
+      is_consumable: values.is_consumable ?? false,
       branch_id: branchId,
     };
+    let partId: string;
     if (editingPart) {
       await updateSparePart(editingPart.id, payload);
+      partId = editingPart.id;
     } else {
-      await createSparePart(payload);
+      const created = await createSparePart(payload);
+      partId = created.id;
     }
+    await setLinkedAssetsForSparePart(partId, linked_asset_ids ?? []);
     setDialogOpen(false);
     setEditingPart(null);
     load();
@@ -311,13 +336,14 @@ export default function SparePartsPage() {
                       <TableHead className="text-right">Stock</TableHead>
                       <TableHead className="text-right">Reorder</TableHead>
                       <TableHead className="text-right">Price</TableHead>
+                      <TableHead>Type</TableHead>
                       <TableHead className="w-[80px]">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {parts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={8} className="text-center text-muted-foreground">
+                        <TableCell colSpan={9} className="text-center text-muted-foreground">
                           No parts found. Add one or adjust filters.
                         </TableCell>
                       </TableRow>
@@ -347,6 +373,13 @@ export default function SparePartsPage() {
                           <TableCell className="text-right">{part.reorder_level}</TableCell>
                           <TableCell className="text-right">
                             {part.unit_price != null ? Number(part.unit_price).toFixed(2) : "—"}
+                          </TableCell>
+                          <TableCell>
+                            {part.is_consumable ? (
+                              <Badge variant="secondary">One-time use</Badge>
+                            ) : (
+                              "—"
+                            )}
                           </TableCell>
                           <TableCell>
                             {canEdit && (
@@ -452,6 +485,8 @@ export default function SparePartsPage() {
           <SparePartForm
             part={editingPart}
             suppliers={suppliers}
+            assets={assets}
+            linkedAssetIds={linkedAssetIdsForForm}
             onSubmit={handleSubmit}
             onCancel={() => { setDialogOpen(false); setEditingPart(null); }}
           />

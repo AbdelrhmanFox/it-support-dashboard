@@ -92,3 +92,46 @@ export async function deleteSparePart(id: string): Promise<void> {
   const { error } = await supabase.from("spare_parts").delete().eq("id", id);
   if (error) throw error;
 }
+
+/** Get asset IDs linked to a spare part (which assets this part can be used for). */
+export async function getLinkedAssetIdsForSparePart(sparePartId: string): Promise<string[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("spare_part_assets")
+    .select("asset_id")
+    .eq("spare_part_id", sparePartId);
+  if (error) throw error;
+  return (data ?? []).map((r) => r.asset_id);
+}
+
+/** Get full asset rows linked to a spare part. */
+export async function getLinkedAssetsForSparePart(
+  sparePartId: string
+): Promise<Array<{ id: string; asset_tag: string; serial_number: string | null; device_type: string }>> {
+  const ids = await getLinkedAssetIdsForSparePart(sparePartId);
+  if (ids.length === 0) return [];
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("assets")
+    .select("id, asset_tag, serial_number, device_type")
+    .in("id", ids);
+  if (error) throw error;
+  return (data ?? []) as Array<{ id: string; asset_tag: string; serial_number: string | null; device_type: string }>;
+}
+
+/** Set which assets a spare part can be used for. Replaces existing links. */
+export async function setLinkedAssetsForSparePart(
+  sparePartId: string,
+  assetIds: string[]
+): Promise<void> {
+  const supabase = createClient();
+  const { error: delErr } = await supabase
+    .from("spare_part_assets")
+    .delete()
+    .eq("spare_part_id", sparePartId);
+  if (delErr) throw delErr;
+  if (assetIds.length === 0) return;
+  const rows = assetIds.map((asset_id) => ({ spare_part_id: sparePartId, asset_id }));
+  const { error: insErr } = await supabase.from("spare_part_assets").insert(rows);
+  if (insErr) throw insErr;
+}
