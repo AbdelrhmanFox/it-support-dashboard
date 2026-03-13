@@ -13,11 +13,12 @@ export type Ticket = Row;
 const statuses = ["open", "in_progress", "waiting_user", "resolved", "closed"] as const;
 export type TicketStatus = (typeof statuses)[number];
 
-export async function getTickets(params?: { status?: string; assetId?: string }): Promise<Ticket[]> {
+export async function getTickets(params?: { status?: string; assetId?: string; branchId?: string | null }): Promise<Ticket[]> {
   const supabase = createClient();
   let query = supabase.from("tickets").select("*").order("created_at", { ascending: false });
   if (params?.status) query = query.eq("status", params.status);
   if (params?.assetId) query = query.eq("asset_id", params.assetId);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];

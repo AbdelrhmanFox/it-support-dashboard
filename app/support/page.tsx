@@ -5,9 +5,10 @@
  * No auth required. Submits via server action and shows success message.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TicketForm, type PublicTicketFormValues } from "@/components/ticket-form";
 import { createPublicTicketAction } from "@/app/support/actions";
+import { getBranches } from "@/services/branches";
 import {
   Card,
   CardContent,
@@ -17,9 +18,14 @@ import {
 } from "@/components/ui/card";
 
 export default function SupportPage() {
+  const [branches, setBranches] = useState<{ id: string; name: string; code: string }[]>([]);
   const [success, setSuccess] = useState<{ ticketNumber: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    getBranches().then(setBranches).catch(() => setBranches([]));
+  }, []);
 
   async function handleSubmit(
     values: PublicTicketFormValues,
@@ -36,6 +42,7 @@ export default function SupportPage() {
       formData.set("issue_type", values.issue_type ?? "");
       formData.set("priority", values.priority);
       formData.set("description", values.description);
+      formData.set("branch_id", values.branch_id);
       if (attachment) formData.set("attachment", attachment);
 
       const result = await createPublicTicketAction(formData);
@@ -77,6 +84,7 @@ export default function SupportPage() {
                 onSubmit={handleSubmit}
                 isSubmitting={isSubmitting}
                 error={error}
+                branches={branches}
               />
             )}
           </CardContent>

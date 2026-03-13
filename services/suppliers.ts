@@ -10,7 +10,7 @@ type SupplierUpdate = Database["public"]["Tables"]["suppliers"]["Update"];
 
 export type Supplier = SupplierRow;
 
-export async function getSuppliers(params?: { search?: string }): Promise<Supplier[]> {
+export async function getSuppliers(params?: { search?: string; branchId?: string | null }): Promise<Supplier[]> {
   const supabase = createClient();
   let query = supabase.from("suppliers").select("*").order("name");
   if (params?.search) {
@@ -18,6 +18,7 @@ export async function getSuppliers(params?: { search?: string }): Promise<Suppli
       `name.ilike.%${params.search}%,contact_person.ilike.%${params.search}%,email.ilike.%${params.search}%`
     );
   }
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   const { data, error } = await query;
   if (error) throw error;
   return data || [];

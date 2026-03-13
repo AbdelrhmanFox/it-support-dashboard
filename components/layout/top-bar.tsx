@@ -10,6 +10,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { NotificationDropdown } from "@/components/layout/notification-dropdown";
 import { useLocale } from "@/components/locale-provider";
+import { BranchSwitcher } from "@/components/branch-switcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -64,6 +65,7 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
 
       <div className="flex flex-1 items-center gap-2">
         <h1 className="text-xl font-semibold">{title}</h1>
+        <BranchSwitcher />
       </div>
 
       <div className="flex items-center gap-2">

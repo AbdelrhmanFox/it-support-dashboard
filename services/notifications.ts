@@ -14,6 +14,7 @@ export async function getNotifications(params?: {
   userId?: string | null;
   unreadOnly?: boolean;
   limit?: number;
+  branchId?: string | null;
 }): Promise<Notification[]> {
   const supabase = createClient();
   let query = supabase
@@ -22,6 +23,7 @@ export async function getNotifications(params?: {
     .order("created_at", { ascending: false });
   if (params?.userId) query = query.eq("user_id", params.userId);
   if (params?.unreadOnly) query = query.is("read_at", null);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   if (params?.limit) query = query.limit(params.limit);
   const { data, error } = await query;
   if (error) throw error;

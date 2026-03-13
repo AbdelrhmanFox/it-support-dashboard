@@ -35,6 +35,7 @@ import { Plus } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useBranch } from "@/components/branch-provider";
 
 const formSchema = z.object({
   ticket_number: z.string(),
@@ -59,6 +60,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function TicketsPage() {
+  const { effectiveBranchId } = useBranch();
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -82,7 +84,10 @@ export default function TicketsPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await getTickets({ status: statusFilter === "all" ? undefined : statusFilter });
+      const data = await getTickets({
+        status: statusFilter === "all" ? undefined : statusFilter,
+        branchId: effectiveBranchId ?? undefined,
+      });
       setTickets(data);
     } catch (e) {
       console.error(e);
@@ -93,7 +98,7 @@ export default function TicketsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+  }, [statusFilter, effectiveBranchId]);
 
   function openCreate() {
     form.reset({
@@ -123,6 +128,7 @@ export default function TicketsPage() {
       status: values.status,
       assigned_to_id: null,
       asset_id: null,
+      branch_id: effectiveBranchId ?? null,
       resolved_at: null,
     });
     setDialogOpen(false);

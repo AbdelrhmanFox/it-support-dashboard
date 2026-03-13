@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getStockTransactions } from "@/services/stock-transactions";
 import { getSpareParts } from "@/services/spare-parts";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -24,6 +25,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 
 export default function InventoryPage() {
+  const { effectiveBranchId } = useBranch();
   const [transactions, setTransactions] = useState<Awaited<ReturnType<typeof getStockTransactions>>>([]);
   const [parts, setParts] = useState<Awaited<ReturnType<typeof getSpareParts>>>([]);
   const [loading, setLoading] = useState(true);
@@ -33,8 +35,12 @@ export default function InventoryPage() {
     setLoading(true);
     try {
       const [txs, p] = await Promise.all([
-        getStockTransactions({ partId: partFilter === "all" ? undefined : partFilter, limit: 100 }),
-        getSpareParts(),
+        getStockTransactions({
+          partId: partFilter === "all" ? undefined : partFilter,
+          limit: 100,
+          branchId: effectiveBranchId ?? undefined,
+        }),
+        getSpareParts({ branchId: effectiveBranchId ?? undefined }),
       ]);
       setTransactions(txs);
       setParts(p);
@@ -47,7 +53,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     load();
-  }, [partFilter]);
+  }, [partFilter, effectiveBranchId]);
 
   return (
     <DashboardLayout title="Inventory">

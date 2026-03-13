@@ -19,6 +19,7 @@ export type PurchaseRequestStatus = (typeof statuses)[number];
 export async function getPurchaseRequests(params?: {
   status?: string;
   supplierId?: string;
+  branchId?: string | null;
 }): Promise<PurchaseRequest[]> {
   const supabase = createClient();
   let query = supabase
@@ -27,6 +28,7 @@ export async function getPurchaseRequests(params?: {
     .order("request_date", { ascending: false });
   if (params?.status) query = query.eq("status", params.status);
   if (params?.supplierId) query = query.eq("supplier_id", params.supplierId);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   const { data, error } = await query;
   if (error) throw error;
   return (data || []) as PurchaseRequest[];

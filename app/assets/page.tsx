@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getAssets, type Asset } from "@/services/assets";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +64,7 @@ const assetSchema = z.object({
 type AssetFormValues = z.infer<typeof assetSchema>;
 
 export default function AssetsPage() {
+  const { effectiveBranchId, userBranchId } = useBranch();
   const [assets, setAssets] = useState<Asset[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -96,6 +98,7 @@ export default function AssetsPage() {
       const data = await getAssets({
         search: search || undefined,
         status: statusFilter === "all" ? undefined : statusFilter,
+        branchId: effectiveBranchId ?? undefined,
       });
       setAssets(data);
     } catch (e) {
@@ -107,7 +110,7 @@ export default function AssetsPage() {
 
   useEffect(() => {
     load();
-  }, [search, statusFilter]);
+  }, [search, statusFilter, effectiveBranchId]);
 
   function openCreate() {
     setEditing(null);
@@ -167,6 +170,7 @@ export default function AssetsPage() {
       purchase_date: values.purchase_date || null,
       warranty_start: values.warranty_start || null,
       warranty_end: values.warranty_end || null,
+      branch_id: effectiveBranchId ?? userBranchId ?? null,
     };
     if (editing) {
       await updateAsset(editing.id, payload);

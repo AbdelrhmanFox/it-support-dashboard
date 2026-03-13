@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getNotifications, markAsRead, type Notification } from "@/services/notifications";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +11,17 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 export default function NotificationsPage() {
+  const { effectiveBranchId } = useBranch();
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
     try {
-      const data = await getNotifications({ limit: 100 });
+      const data = await getNotifications({
+        limit: 100,
+        branchId: effectiveBranchId ?? undefined,
+      });
       setItems(data);
     } catch (e) {
       console.error(e);
@@ -27,7 +32,7 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [effectiveBranchId]);
 
   async function handleMarkAsRead(id: string) {
     await markAsRead(id);

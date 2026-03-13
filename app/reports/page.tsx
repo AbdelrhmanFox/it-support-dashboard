@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useBranch } from "@/components/branch-provider";
 import {
   getReportData,
   exportToExcel,
@@ -41,6 +42,7 @@ const REPORT_OPTIONS: { value: ReportType; label: string }[] = [
 ];
 
 export default function ReportsPage() {
+  const { effectiveBranchId } = useBranch();
   const [reportType, setReportType] = useState<ReportType | "">("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,9 +55,9 @@ export default function ReportsPage() {
     async function loadAnalytics() {
       try {
         const [tpm, maint, prs] = await Promise.all([
-          getTicketsPerMonth(12),
-          getMaintenanceStatsByMonth(12),
-          getPurchaseRequests(),
+          getTicketsPerMonth(12, effectiveBranchId ?? undefined),
+          getMaintenanceStatsByMonth(12, effectiveBranchId ?? undefined),
+          getPurchaseRequests({ branchId: effectiveBranchId ?? undefined }),
         ]);
         if (cancelled) return;
         setTicketsPerMonth(tpm);
@@ -74,14 +76,14 @@ export default function ReportsPage() {
     }
     loadAnalytics();
     return () => { cancelled = true; };
-  }, []);
+  }, [effectiveBranchId]);
 
   async function handleExport() {
     if (!reportType) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await getReportData(reportType);
+      const data = await getReportData(reportType, effectiveBranchId ?? undefined);
       const sheetName = REPORT_OPTIONS.find((r) => r.value === reportType)?.label ?? reportType;
       const filename = `IT-Support-${reportType}-${new Date().toISOString().slice(0, 10)}`;
       exportToExcel(data, sheetName, filename);

@@ -26,6 +26,7 @@ import {
   type MaintenanceStatsItem,
 } from "@/services/dashboard";
 import { getRecentActivity, type ActivityItem } from "@/services/activity";
+import { useBranch } from "@/components/branch-provider";
 import {
   BarChart,
   Bar,
@@ -41,6 +42,7 @@ import {
 } from "recharts";
 
 export default function DashboardPage() {
+  const { effectiveBranchId } = useBranch();
   const [counts, setCounts] = useState<CountsType | null>(null);
   const [ticketsPerMonth, setTicketsPerMonth] = useState<TicketsPerMonthItem[]>([]);
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatusItem[]>([]);
@@ -63,13 +65,13 @@ export default function DashboardPage() {
 
       try {
         const [c, tpm, inv, issues, consumption, maintenance, act] = await Promise.all([
-          getDashboardCounts(),
-          getTicketsPerMonth(6),
-          getInventoryStatus(),
-          getMostCommonIssues(6),
-          getPartsConsumptionByMonth(6),
-          getMaintenanceStatsByMonth(6),
-          getRecentActivity(10),
+          getDashboardCounts(effectiveBranchId ?? undefined),
+          getTicketsPerMonth(6, effectiveBranchId ?? undefined),
+          getInventoryStatus(effectiveBranchId ?? undefined),
+          getMostCommonIssues(6, effectiveBranchId ?? undefined),
+          getPartsConsumptionByMonth(6, effectiveBranchId ?? undefined),
+          getMaintenanceStatsByMonth(6, effectiveBranchId ?? undefined),
+          getRecentActivity(10, effectiveBranchId ?? undefined),
         ]);
         if (cancelled) return;
         setCounts(c);
@@ -106,7 +108,7 @@ export default function DashboardPage() {
     }
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [effectiveBranchId]);
 
   if (loading) {
     return (

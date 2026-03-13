@@ -16,6 +16,7 @@ export async function getStockTransactions(params?: {
   partId?: string;
   assetId?: string;
   limit?: number;
+  branchId?: string | null;
 }): Promise<StockTransaction[]> {
   const supabase = createClient();
   let query = supabase
@@ -24,6 +25,7 @@ export async function getStockTransactions(params?: {
     .order("transaction_date", { ascending: false });
   if (params?.partId) query = query.eq("spare_part_id", params.partId);
   if (params?.assetId) query = query.eq("related_asset_id", params.assetId);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   if (params?.limit) query = query.limit(params.limit);
   const { data, error } = await query;
   if (error) throw error;

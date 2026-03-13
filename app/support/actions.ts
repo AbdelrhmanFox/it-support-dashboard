@@ -35,9 +35,13 @@ export async function createPublicTicketAction(
   const issue_type = getString(formData, "issue_type") || null;
   const priority = (getString(formData, "priority") || "medium") as "low" | "medium" | "high";
   const description = getString(formData, "description");
+  const branch_id = getString(formData, "branch_id") || null;
 
   if (!requester_name || !employee_id || !email || !description) {
     return { success: false, error: "Required fields: Full name, Employee ID, Email, Description." };
+  }
+  if (!branch_id) {
+    return { success: false, error: "Please select your branch." };
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return { success: false, error: "Please enter a valid email address." };
@@ -73,6 +77,7 @@ export async function createPublicTicketAction(
     priority,
     description,
     attachment_url,
+    branch_id,
   };
   return createPublicTicket(supabase, input);
 }

@@ -10,10 +10,10 @@ import { getAssets } from "@/services/assets";
 
 export type ReportType = "tickets" | "inventory" | "suppliers" | "purchase_requests" | "assets";
 
-export async function getReportData(type: ReportType): Promise<Record<string, unknown>[]> {
+export async function getReportData(type: ReportType, branchId?: string | null): Promise<Record<string, unknown>[]> {
   switch (type) {
     case "tickets": {
-      const data = await getTickets();
+      const data = await getTickets({ branchId: branchId ?? undefined });
       return data.map((t) => ({
         "Ticket #": t.ticket_number,
         "Requester": t.requester_name,
@@ -28,7 +28,7 @@ export async function getReportData(type: ReportType): Promise<Record<string, un
       }));
     }
     case "inventory": {
-      const data = await getSpareParts();
+      const data = await getSpareParts({ branchId: branchId ?? undefined });
       return data.map((p) => ({
         "Part name": p.part_name,
         "SKU": p.sku,
@@ -42,7 +42,7 @@ export async function getReportData(type: ReportType): Promise<Record<string, un
       }));
     }
     case "suppliers": {
-      const data = await getSuppliers();
+      const data = await getSuppliers({ branchId: branchId ?? undefined });
       return data.map((s) => ({
         "Name": s.name,
         "Contact person": s.contact_person,
@@ -53,7 +53,7 @@ export async function getReportData(type: ReportType): Promise<Record<string, un
       }));
     }
     case "purchase_requests": {
-      const data = await getPurchaseRequests();
+      const data = await getPurchaseRequests({ branchId: branchId ?? undefined });
       return data.map((r) => ({
         "Request #": r.request_number,
         "Part": (r.spare_parts as { part_name?: string })?.part_name,
@@ -66,7 +66,7 @@ export async function getReportData(type: ReportType): Promise<Record<string, un
       }));
     }
     case "assets": {
-      const data = await getAssets();
+      const data = await getAssets({ branchId: branchId ?? undefined });
       return data.map((a) => ({
         "Asset tag": a.asset_tag,
         "Serial": a.serial_number,

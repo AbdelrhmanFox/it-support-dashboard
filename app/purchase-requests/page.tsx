@@ -11,6 +11,7 @@ import {
 } from "@/services/purchase-requests";
 import { getSpareParts } from "@/services/spare-parts";
 import { getSuppliers } from "@/services/suppliers";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -70,6 +71,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function PurchaseRequestsPage() {
+  const { effectiveBranchId, userBranchId } = useBranch();
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [parts, setParts] = useState<Awaited<ReturnType<typeof getSpareParts>>>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
@@ -93,9 +95,12 @@ export default function PurchaseRequestsPage() {
     setLoading(true);
     try {
       const [reqs, p, s] = await Promise.all([
-        getPurchaseRequests({ status: statusFilter === "all" ? undefined : statusFilter }),
-        getSpareParts(),
-        getSuppliers(),
+        getPurchaseRequests({
+          status: statusFilter === "all" ? undefined : statusFilter,
+          branchId: effectiveBranchId ?? undefined,
+        }),
+        getSpareParts({ branchId: effectiveBranchId ?? undefined }),
+        getSuppliers({ branchId: effectiveBranchId ?? undefined }),
       ]);
       setRequests(reqs);
       setParts(p);
@@ -109,7 +114,7 @@ export default function PurchaseRequestsPage() {
 
   useEffect(() => {
     load();
-  }, [statusFilter]);
+  }, [statusFilter, effectiveBranchId]);
 
   function openCreate() {
     form.reset({
@@ -135,6 +140,7 @@ export default function PurchaseRequestsPage() {
       requested_by_id: null,
       request_date: new Date().toISOString().slice(0, 10),
       actual_delivery_date: null,
+      branch_id: effectiveBranchId ?? userBranchId ?? null,
     });
     setDialogOpen(false);
     load();

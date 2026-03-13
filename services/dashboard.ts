@@ -13,7 +13,7 @@ export interface DashboardCounts {
   partsInstalledToday: number;
 }
 
-export async function getDashboardCounts(): Promise<DashboardCounts> {
+export async function getDashboardCounts(branchId?: string | null): Promise<DashboardCounts> {
   const supabase = createClient();
   const today = new Date().toISOString().slice(0, 10);
 
@@ -22,13 +22,15 @@ export async function getDashboardCounts(): Promise<DashboardCounts> {
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
+  const b = (q: any) => (branchId != null ? q.eq("branch_id", branchId) : q);
+
   const [ticketsRes, requestsRes, partsRes, delayedRes, assetsMaintenanceRes, partsTodayRes] = await Promise.all([
-    supabase.from("tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
-    supabase.from("purchase_requests").select("id", { count: "exact", head: true }).in("status", ["draft", "submitted", "ordered", "waiting_supplier"]),
-    supabase.from("spare_parts").select("id, current_stock, reorder_level"),
-    supabase.from("purchase_requests").select("id").lt("expected_delivery_date", today).not("status", "in", '("delivered","cancelled")'),
-    supabase.from("assets").select("id", { count: "exact", head: true }).eq("status", "in_maintenance"),
-    supabase.from("stock_transactions").select("id").eq("transaction_type", "OUT").gte("transaction_date", todayStart.toISOString()).lt("transaction_date", todayEnd.toISOString()),
+    b(supabase.from("tickets").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"])),
+    b(supabase.from("purchase_requests").select("id", { count: "exact", head: true }).in("status", ["draft", "submitted", "ordered", "waiting_supplier"])),
+    b(supabase.from("spare_parts").select("id, current_stock, reorder_level")),
+    b(supabase.from("purchase_requests").select("id").lt("expected_delivery_date", today).not("status", "in", '("delivered","cancelled")')),
+    b(supabase.from("assets").select("id", { count: "exact", head: true }).eq("status", "in_maintenance")),
+    b(supabase.from("stock_transactions").select("id").eq("transaction_type", "OUT").gte("transaction_date", todayStart.toISOString()).lt("transaction_date", todayEnd.toISOString())),
   ]);
 
   const lowStockItems = (partsRes.data || []).filter((p: { current_stock: number; reorder_level: number }) => p.current_stock <= p.reorder_level).length;
@@ -48,14 +50,13 @@ export interface TicketsPerMonthItem {
   count: number;
 }
 
-export async function getTicketsPerMonth(months: number = 6): Promise<TicketsPerMonthItem[]> {
+export async function getTicketsPerMonth(months: number = 6, branchId?: string | null): Promise<TicketsPerMonthItem[]> {
   const supabase = createClient();
   const start = new Date();
   start.setMonth(start.getMonth() - months);
-  const { data } = await supabase
-    .from("tickets")
-    .select("created_at")
-    .gte("created_at", start.toISOString());
+  let query = supabase.from("tickets").select("created_at").gte("created_at", start.toISOString());
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
 
   const byMonth: Record<string, number> = {};
   for (let i = 0; i < months; i++) {
@@ -81,9 +82,11 @@ export interface InventoryStatusItem {
   fill: string;
 }
 
-export async function getInventoryStatus(): Promise<InventoryStatusItem[]> {
+export async function getInventoryStatus(branchId?: string | null): Promise<InventoryStatusItem[]> {
   const supabase = createClient();
-  const { data } = await supabase.from("spare_parts").select("part_name, current_stock, reorder_level");
+  let query = supabase.from("spare_parts").select("part_name, current_stock, reorder_level");
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
   const list = data || [];
   let ok = 0;
   let low = 0;
@@ -105,9 +108,11 @@ export interface IssueTypeCount {
   count: number;
 }
 
-export async function getMostCommonIssues(limit = 6): Promise<IssueTypeCount[]> {
+export async function getMostCommonIssues(limit = 6, branchId?: string | null): Promise<IssueTypeCount[]> {
   const supabase = createClient();
-  const { data } = await supabase.from("tickets").select("issue_type");
+  let query = supabase.from("tickets").select("issue_type");
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
   const list = data || [];
   const byType: Record<string, number> = {};
   list.forEach((t: { issue_type: string | null }) => {
@@ -125,15 +130,13 @@ export interface PartsConsumptionItem {
   count: number;
 }
 
-export async function getPartsConsumptionByMonth(months = 6): Promise<PartsConsumptionItem[]> {
+export async function getPartsConsumptionByMonth(months = 6, branchId?: string | null): Promise<PartsConsumptionItem[]> {
   const supabase = createClient();
   const start = new Date();
   start.setMonth(start.getMonth() - months);
-  const { data } = await supabase
-    .from("stock_transactions")
-    .select("transaction_date, quantity")
-    .eq("transaction_type", "OUT")
-    .gte("transaction_date", start.toISOString());
+  let query = supabase.from("stock_transactions").select("transaction_date, quantity").eq("transaction_type", "OUT").gte("transaction_date", start.toISOString());
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
   const byMonth: Record<string, number> = {};
   for (let i = 0; i < months; i++) {
     const d = new Date();
@@ -155,14 +158,12 @@ export interface SupplierDelaysItem {
   count: number;
 }
 
-export async function getSupplierDelaysByMonth(months = 6): Promise<SupplierDelaysItem[]> {
+export async function getSupplierDelaysByMonth(months = 6, branchId?: string | null): Promise<SupplierDelaysItem[]> {
   const supabase = createClient();
   const today = new Date().toISOString().slice(0, 10);
-  const { data } = await supabase
-    .from("purchase_requests")
-    .select("expected_delivery_date")
-    .lt("expected_delivery_date", today)
-    .not("status", "in", '("delivered","cancelled")');
+  let query = supabase.from("purchase_requests").select("expected_delivery_date").lt("expected_delivery_date", today).not("status", "in", '("delivered","cancelled")');
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
   const byMonth: Record<string, number> = {};
   for (let i = 0; i < months; i++) {
     const d = new Date();
@@ -185,14 +186,13 @@ export interface MaintenanceStatsItem {
   count: number;
 }
 
-export async function getMaintenanceStatsByMonth(months = 6): Promise<MaintenanceStatsItem[]> {
+export async function getMaintenanceStatsByMonth(months = 6, branchId?: string | null): Promise<MaintenanceStatsItem[]> {
   const supabase = createClient();
   const start = new Date();
   start.setMonth(start.getMonth() - months);
-  const { data } = await supabase
-    .from("asset_history")
-    .select("performed_at")
-    .gte("performed_at", start.toISOString());
+  let query = supabase.from("asset_history").select("performed_at").gte("performed_at", start.toISOString());
+  if (branchId != null) query = query.eq("branch_id", branchId);
+  const { data } = await query;
   const byMonth: Record<string, number> = {};
   for (let i = 0; i < months; i++) {
     const d = new Date();

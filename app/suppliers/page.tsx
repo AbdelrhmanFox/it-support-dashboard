@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSuppliers, type Supplier } from "@/services/suppliers";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,7 @@ const supplierSchema = z.object({
 type SupplierFormValues = z.infer<typeof supplierSchema>;
 
 export default function SuppliersPage() {
+  const { effectiveBranchId, userBranchId } = useBranch();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -69,7 +71,10 @@ export default function SuppliersPage() {
   async function load() {
     setLoading(true);
     try {
-      const data = await getSuppliers({ search: search || undefined });
+      const data = await getSuppliers({
+        search: search || undefined,
+        branchId: effectiveBranchId ?? undefined,
+      });
       setSuppliers(data);
     } catch (e) {
       console.error(e);
@@ -80,7 +85,7 @@ export default function SuppliersPage() {
 
   useEffect(() => {
     load();
-  }, [search]);
+  }, [search, effectiveBranchId]);
 
   function openCreate() {
     setEditing(null);
@@ -112,6 +117,7 @@ export default function SuppliersPage() {
       email: values.email || null,
       sla_days: values.sla_days,
       notes: values.notes || null,
+      branch_id: effectiveBranchId ?? userBranchId ?? null,
     };
     try {
       if (editing) {

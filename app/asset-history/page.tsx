@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getAssetHistory } from "@/services/asset-history";
+import { getAssets } from "@/services/assets";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -20,9 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { getAssets } from "@/services/assets";
 
 export default function AssetHistoryPage() {
+  const { effectiveBranchId } = useBranch();
   const [history, setHistory] = useState<Awaited<ReturnType<typeof getAssetHistory>>>([]);
   const [assets, setAssets] = useState<Awaited<ReturnType<typeof getAssets>>>([]);
   const [loading, setLoading] = useState(true);
@@ -32,8 +34,12 @@ export default function AssetHistoryPage() {
     setLoading(true);
     try {
       const [h, a] = await Promise.all([
-        getAssetHistory({ assetId: assetFilter === "all" ? undefined : assetFilter, limit: 100 }),
-        getAssets(),
+        getAssetHistory({
+          assetId: assetFilter === "all" ? undefined : assetFilter,
+          limit: 100,
+          branchId: effectiveBranchId ?? undefined,
+        }),
+        getAssets({ branchId: effectiveBranchId ?? undefined }),
       ]);
       setHistory(h);
       setAssets(a);
@@ -46,7 +52,7 @@ export default function AssetHistoryPage() {
 
   useEffect(() => {
     load();
-  }, [assetFilter]);
+  }, [assetFilter, effectiveBranchId]);
 
   return (
     <DashboardLayout title="Asset History">

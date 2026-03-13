@@ -13,12 +13,24 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      branches: {
+        Row: {
+          id: string;
+          name: string;
+          code: string;
+          location: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["branches"]["Row"], "id" | "created_at"> & { id?: string; created_at?: string };
+        Update: Partial<Database["public"]["Tables"]["branches"]["Insert"]>;
+      };
       profiles: {
         Row: {
           id: string;
           email: string | null;
           full_name: string | null;
           role: string;
+          branch_id: string | null;
           avatar_url: string | null;
           created_at: string;
           updated_at: string;
@@ -38,6 +50,7 @@ export interface Database {
           email: string | null;
           sla_days: number;
           notes: string | null;
+          branch_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -64,6 +77,7 @@ export interface Database {
           reorder_level: number;
           notes: string | null;
           image_url: string | null;
+          branch_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -91,6 +105,7 @@ export interface Database {
           department: string | null;
           location: string | null;
           notes: string | null;
+          branch_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -111,6 +126,7 @@ export interface Database {
           related_asset_id: string | null;
           performed_by_id: string | null;
           notes: string | null;
+          branch_id: string | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["stock_transactions"]["Row"], "id" | "created_at"> & {
@@ -132,6 +148,7 @@ export interface Database {
           actual_delivery_date: string | null;
           status: string;
           notes: string | null;
+          branch_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -151,6 +168,7 @@ export interface Database {
           next_followup_date: string | null;
           status: string | null;
           remarks: string | null;
+          branch_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -172,6 +190,7 @@ export interface Database {
           new_value: string | null;
           performed_by_id: string | null;
           performed_at: string;
+          branch_id: string | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["asset_history"]["Row"], "id" | "created_at"> & {
@@ -194,6 +213,7 @@ export interface Database {
           status: string;
           assigned_to_id: string | null;
           asset_id: string | null;
+          branch_id: string | null;
           resolved_at: string | null;
           created_at: string;
           updated_at: string;
@@ -216,6 +236,7 @@ export interface Database {
           related_record_type: string | null;
           priority: string;
           read_at: string | null;
+          branch_id: string | null;
           created_at: string;
         };
         Insert: Omit<Database["public"]["Tables"]["notifications"]["Row"], "id" | "created_at"> & {

@@ -20,6 +20,8 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { useBranch } from "@/components/branch-provider";
+import { BranchSwitcher } from "@/components/branch-switcher";
 
 export interface NavItem {
   title: string;
@@ -97,16 +99,20 @@ interface SidebarProps {
 
 export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
+  const { branchLabel } = useBranch();
 
   return (
     <>
       {/* Desktop sidebar: hidden on small screens */}
       <aside className="fixed left-0 top-0 z-40 hidden h-screen w-64 flex-col border-r bg-card lg:flex">
-        <div className="flex h-16 items-center border-b px-6">
+        <div className="flex h-16 flex-col justify-center border-b px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold">
             <Monitor className="h-6 w-6 text-primary" />
-            <span className="text-lg">IT Support</span>
+            <span className="text-lg">{branchLabel} Support</span>
           </Link>
+          <div className="mt-2">
+            <BranchSwitcher />
+          </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4">
           <NavLinks pathname={pathname} />
@@ -135,7 +141,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         <div className="flex h-16 items-center justify-between border-b px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold" onClick={onMobileClose}>
             <Monitor className="h-6 w-6 text-primary" />
-            <span className="text-lg">IT Support</span>
+            <span className="text-lg">{branchLabel} Support</span>
           </Link>
           <Button
             variant="ghost"

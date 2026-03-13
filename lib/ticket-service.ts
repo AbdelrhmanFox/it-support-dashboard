@@ -18,6 +18,7 @@ export interface PublicTicketInput {
   priority: "low" | "medium" | "high";
   description: string;
   attachment_url?: string | null;
+  branch_id: string | null;
 }
 
 export interface CreatePublicTicketResult {
@@ -111,6 +112,7 @@ export async function createPublicTicket(
     assigned_to_id: null,
     resolved_at: null,
     attachment_url: input.attachment_url ?? null,
+    branch_id: input.branch_id,
   };
 
   const { data, error } = await supabase

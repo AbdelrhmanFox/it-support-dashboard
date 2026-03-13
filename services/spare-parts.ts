@@ -15,6 +15,7 @@ export async function getSpareParts(params?: {
   supplierId?: string;
   search?: string;
   lowStockOnly?: boolean;
+  branchId?: string | null;
 }): Promise<SparePart[]> {
   const supabase = createClient();
   let query = supabase
@@ -33,6 +34,7 @@ export async function getSpareParts(params?: {
       `part_name.ilike.%${params.search}%,sku.ilike.%${params.search}%,brand.ilike.%${params.search}%`
     );
   }
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
 
   const { data, error } = await query;
   if (error) throw error;

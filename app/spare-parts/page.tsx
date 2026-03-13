@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getSpareParts, type SparePart } from "@/services/spare-parts";
 import { getSuppliers } from "@/services/suppliers";
+import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,7 @@ import {
 } from "@/components/ui/select";
 
 export default function SparePartsPage() {
+  const { effectiveBranchId, userBranchId } = useBranch();
   const [parts, setParts] = useState<SparePart[]>([]);
   const [suppliers, setSuppliers] = useState<Awaited<ReturnType<typeof getSuppliers>>>([]);
   const [loading, setLoading] = useState(true);
@@ -63,8 +65,9 @@ export default function SparePartsPage() {
           category: category === "all" ? undefined : category,
           supplierId: supplierId === "all" ? undefined : supplierId,
           lowStockOnly: lowStockOnly || undefined,
+          branchId: effectiveBranchId ?? undefined,
         }),
-        getSuppliers(),
+        getSuppliers({ branchId: effectiveBranchId ?? undefined }),
       ]);
       setParts(partsRes);
       setSuppliers(suppliersRes);
@@ -77,7 +80,7 @@ export default function SparePartsPage() {
 
   useEffect(() => {
     load();
-  }, [search, category, supplierId, lowStockOnly]);
+  }, [search, category, supplierId, lowStockOnly, effectiveBranchId]);
 
   async function handleSubmit(values: SparePartFormValues) {
     const payload = {
@@ -90,6 +93,7 @@ export default function SparePartsPage() {
       sku: values.sku || null,
       notes: values.notes || null,
       image_url: null,
+      branch_id: effectiveBranchId ?? userBranchId ?? null,
     };
     if (editingPart) {
       await updateSparePart(editingPart.id, payload);

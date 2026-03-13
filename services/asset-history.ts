@@ -14,6 +14,7 @@ export type AssetHistoryEntry = Row & {
 export async function getAssetHistory(params?: {
   assetId?: string;
   limit?: number;
+  branchId?: string | null;
 }): Promise<AssetHistoryEntry[]> {
   const supabase = createClient();
   let query = supabase
@@ -21,6 +22,7 @@ export async function getAssetHistory(params?: {
     .select("*, spare_parts(part_name)")
     .order("performed_at", { ascending: false });
   if (params?.assetId) query = query.eq("asset_id", params.assetId);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   if (params?.limit) query = query.limit(params.limit);
   const { data, error } = await query;
   if (error) throw error;

@@ -29,6 +29,7 @@ const publicTicketSchema = z.object({
   issue_type: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).default("medium"),
   description: z.string().min(1, "Problem description is required"),
+  branch_id: z.string().min(1, "Please select your branch"),
 });
 
 export type PublicTicketFormValues = z.infer<typeof publicTicketSchema>;
@@ -50,9 +51,10 @@ interface TicketFormProps {
   onSubmit: (values: PublicTicketFormValues, attachment?: File | null) => Promise<void>;
   isSubmitting: boolean;
   error: string | null;
+  branches: { id: string; name: string; code: string }[];
 }
 
-export function TicketForm({ onSubmit, isSubmitting, error }: TicketFormProps) {
+export function TicketForm({ onSubmit, isSubmitting, error, branches }: TicketFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const form = useForm<PublicTicketFormValues>({
     resolver: zodResolver(publicTicketSchema),
@@ -64,6 +66,7 @@ export function TicketForm({ onSubmit, isSubmitting, error }: TicketFormProps) {
       issue_type: "",
       priority: "medium",
       description: "",
+      branch_id: "",
     },
   });
 
@@ -131,6 +134,33 @@ export function TicketForm({ onSubmit, isSubmitting, error }: TicketFormProps) {
           placeholder="e.g. IT, HR, Sales"
           {...form.register("department")}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Branch *</Label>
+        <Select
+          value={form.watch("branch_id") || "__none__"}
+          onValueChange={(v) =>
+            form.setValue("branch_id", v === "__none__" ? "" : v)
+          }
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select your branch" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">Select branch...</SelectItem>
+            {branches.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {form.formState.errors.branch_id && (
+          <p className="text-sm text-destructive">
+            {form.formState.errors.branch_id.message}
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">

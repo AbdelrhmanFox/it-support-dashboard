@@ -14,13 +14,20 @@ export interface ActivityItem {
   link?: string;
 }
 
-export async function getRecentActivity(limit: number = 10): Promise<ActivityItem[]> {
+export async function getRecentActivity(limit: number = 10, branchId?: string | null): Promise<ActivityItem[]> {
   const supabase = createClient();
 
+  const ticketsBase = () =>
+    supabase.from("tickets").select("id, ticket_number, requester_name, status, created_at");
+  const prBase = () =>
+    supabase.from("purchase_requests").select("id, request_number, status, created_at");
+  const stockBase = () =>
+    supabase.from("stock_transactions").select("id, transaction_type, quantity, created_at");
+
   const [ticketsRes, prRes, stockRes] = await Promise.all([
-    supabase.from("tickets").select("id, ticket_number, requester_name, status, created_at").order("created_at", { ascending: false }).limit(5),
-    supabase.from("purchase_requests").select("id, request_number, status, created_at").order("created_at", { ascending: false }).limit(5),
-    supabase.from("stock_transactions").select("id, transaction_type, quantity, created_at").order("created_at", { ascending: false }).limit(5),
+    (branchId != null ? ticketsBase().eq("branch_id", branchId) : ticketsBase()).order("created_at", { ascending: false }).limit(5),
+    (branchId != null ? prBase().eq("branch_id", branchId) : prBase()).order("created_at", { ascending: false }).limit(5),
+    (branchId != null ? stockBase().eq("branch_id", branchId) : stockBase()).order("created_at", { ascending: false }).limit(5),
   ]);
 
   const items: ActivityItem[] = [];

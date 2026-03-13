@@ -17,11 +17,13 @@ export async function getAssets(params?: {
   status?: string;
   search?: string;
   department?: string;
+  branchId?: string | null;
 }): Promise<Asset[]> {
   const supabase = createClient();
   let query = supabase.from("assets").select("*").order("asset_tag");
   if (params?.status) query = query.eq("status", params.status);
   if (params?.department) query = query.eq("department", params.department);
+  if (params?.branchId != null) query = query.eq("branch_id", params.branchId);
   if (params?.search) {
     query = query.or(
       `asset_tag.ilike.%${params.search}%,serial_number.ilike.%${params.search}%,assigned_user_name.ilike.%${params.search}%`
