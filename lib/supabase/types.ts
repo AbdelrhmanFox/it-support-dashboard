@@ -24,6 +24,21 @@ export interface Database {
         Insert: Omit<Database["public"]["Tables"]["branches"]["Row"], "id" | "created_at"> & { id?: string; created_at?: string };
         Update: Partial<Database["public"]["Tables"]["branches"]["Insert"]>;
       };
+      lookup_options: {
+        Row: {
+          id: string;
+          category: string;
+          label: string;
+          sort_order: number;
+          branch_id: string | null;
+          created_at: string;
+        };
+        Insert: Omit<Database["public"]["Tables"]["lookup_options"]["Row"], "id" | "created_at"> & {
+          id?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lookup_options"]["Insert"]>;
+      };
       profiles: {
         Row: {
           id: string;

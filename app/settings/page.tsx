@@ -20,7 +20,7 @@ import { useLocale } from "@/components/locale-provider";
 import { useBranch } from "@/components/branch-provider";
 import { getCurrentUserProfile, type Profile } from "@/services/profile";
 import { Separator } from "@/components/ui/separator";
-import { Palette, Languages, User, LayoutDashboard, Info } from "lucide-react";
+import { Palette, Languages, User, LayoutDashboard, Info, List } from "lucide-react";
 
 const APP_VERSION = "0.1.0";
 
@@ -35,7 +35,7 @@ function roleDisplay(role: string | null): string {
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { locale, setLocale } = useLocale();
-  const { role, branchLabel } = useBranch();
+  const { role, branchLabel, isAdmin } = useBranch();
   const [mounted, setMounted] = useState(false);
   const [authUser, setAuthUser] = useState<SupabaseUser | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -173,6 +173,25 @@ export default function SettingsPage() {
                 </Button>
               </CardContent>
             </Card>
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center gap-2">
+                    <List className="h-5 w-5 text-muted-foreground" />
+                    <CardTitle>Dropdown lists</CardTitle>
+                  </div>
+                  <CardDescription>Edit device types, brands, and departments used on the Add asset form.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button variant="outline" asChild>
+                    <Link href="/settings/options">
+                      <List className="mr-2 h-4 w-4" />
+                      Manage lists
+                    </Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">

@@ -93,6 +93,14 @@ export async function deleteSparePart(id: string): Promise<void> {
   if (error) throw error;
 }
 
+/** True if error is PostgREST "table not in schema cache" (migration not applied). */
+function isSparePartAssetsTableMissing(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === "PGRST205") return true;
+  const msg = error.message ?? "";
+  return msg.includes("spare_part_assets") && (msg.includes("schema cache") || msg.includes("Could not find"));
+}
+
 /** Get asset IDs linked to a spare part (which assets this part can be used for). */
 export async function getLinkedAssetIdsForSparePart(sparePartId: string): Promise<string[]> {
   const supabase = createClient();
@@ -100,7 +108,10 @@ export async function getLinkedAssetIdsForSparePart(sparePartId: string): Promis
     .from("spare_part_assets")
     .select("asset_id")
     .eq("spare_part_id", sparePartId);
-  if (error) throw error;
+  if (error) {
+    if (isSparePartAssetsTableMissing(error)) return [];
+    throw error;
+  }
   return (data ?? []).map((r) => r.asset_id);
 }
 
@@ -119,7 +130,8 @@ export async function getLinkedAssetsForSparePart(
   return (data ?? []) as Array<{ id: string; asset_tag: string; serial_number: string | null; device_type: string }>;
 }
 
-/** Set which assets a spare part can be used for. Replaces existing links. */
+/** Set which assets a spare part can be used for. Replaces existing links.
+ * If table spare_part_assets does not exist yet (migration not run), no-ops so spare part create/update still succeeds. */
 export async function setLinkedAssetsForSparePart(
   sparePartId: string,
   assetIds: string[]
@@ -129,9 +141,22 @@ export async function setLinkedAssetsForSparePart(
     .from("spare_part_assets")
     .delete()
     .eq("spare_part_id", sparePartId);
-  if (delErr) throw delErr;
+  if (delErr) {
+    if (isSparePartAssetsTableMissing(delErr)) {
+      if (typeof process !== "undefined" && process.env.NODE_ENV === "development" && assetIds.length > 0) {
+        console.warn(
+          "spare_part_assets table missing — run database/migrations/add-spare-part-assets.sql in Supabase. Device asset links not saved."
+        );
+      }
+      return;
+    }
+    throw delErr;
+  }
   if (assetIds.length === 0) return;
   const rows = assetIds.map((asset_id) => ({ spare_part_id: sparePartId, asset_id }));
   const { error: insErr } = await supabase.from("spare_part_assets").insert(rows);
-  if (insErr) throw insErr;
+  if (insErr) {
+    if (isSparePartAssetsTableMissing(insErr)) return;
+    throw insErr;
+  }
 }

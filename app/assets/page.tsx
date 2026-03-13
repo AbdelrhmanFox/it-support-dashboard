@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, FileUp } from "lucide-react";
 import { createAsset, updateAsset } from "@/services/assets";
+import { getLookupOptions } from "@/services/lookup-options";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -95,6 +96,9 @@ export default function AssetsPage() {
   const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
+  const [deviceTypeOptions, setDeviceTypeOptions] = useState<string[]>([]);
+  const [brandOptions, setBrandOptions] = useState<string[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetSchema),
@@ -135,6 +139,32 @@ export default function AssetsPage() {
   useEffect(() => {
     load();
   }, [search, statusFilter, effectiveBranchId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadOptions() {
+      try {
+        const [dt, br, dep] = await Promise.all([
+          getLookupOptions("asset_device_type"),
+          getLookupOptions("asset_brand"),
+          getLookupOptions("asset_department"),
+        ]);
+        if (!cancelled) {
+          setDeviceTypeOptions(dt);
+          setBrandOptions(br);
+          setDepartmentOptions(dep);
+        }
+      } catch {
+        if (!cancelled) {
+          setDeviceTypeOptions([]);
+          setBrandOptions([]);
+          setDepartmentOptions([]);
+        }
+      }
+    }
+    loadOptions();
+    return () => { cancelled = true; };
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -503,7 +533,38 @@ export default function AssetsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Device type *</Label>
-                <Input {...form.register("device_type")} placeholder="e.g. Laptop, Printer" />
+                {(() => {
+                  const v = form.watch("device_type");
+                  const opts = v && !deviceTypeOptions.includes(v) ? [v, ...deviceTypeOptions] : deviceTypeOptions;
+                  if (opts.length === 0) {
+                    return (
+                      <>
+                        <Input {...form.register("device_type")} placeholder="e.g. Laptop (run migration for lists)" />
+                        {form.formState.errors.device_type && (
+                          <p className="text-sm text-destructive">{form.formState.errors.device_type.message}</p>
+                        )}
+                      </>
+                    );
+                  }
+                  return (
+                    <Select
+                      value={v || undefined}
+                      onValueChange={(val) => form.setValue("device_type", val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select device type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {opts.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
+                {deviceTypeOptions.length > 0 && form.formState.errors.device_type && (
+                  <p className="text-sm text-destructive">{form.formState.errors.device_type.message}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>Status</Label>
@@ -525,7 +586,29 @@ export default function AssetsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Brand</Label>
-                <Input {...form.register("brand")} />
+                {(() => {
+                  const v = form.watch("brand") ?? "";
+                  const opts = v && !brandOptions.includes(v) ? [v, ...brandOptions] : brandOptions;
+                  if (opts.length === 0) {
+                    return <Input {...form.register("brand")} />;
+                  }
+                  return (
+                    <Select
+                      value={v || "__none__"}
+                      onValueChange={(val) => form.setValue("brand", val === "__none__" ? "" : val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select brand" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {opts.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <Label>Model</Label>
@@ -541,7 +624,29 @@ export default function AssetsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Department</Label>
-                <Input {...form.register("department")} />
+                {(() => {
+                  const v = form.watch("department") ?? "";
+                  const opts = v && !departmentOptions.includes(v) ? [v, ...departmentOptions] : departmentOptions;
+                  if (opts.length === 0) {
+                    return <Input {...form.register("department")} />;
+                  }
+                  return (
+                    <Select
+                      value={v || "__none__"}
+                      onValueChange={(val) => form.setValue("department", val === "__none__" ? "" : val)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select department" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {opts.map((opt) => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  );
+                })()}
               </div>
               <div className="space-y-2">
                 <Label>Location</Label>
