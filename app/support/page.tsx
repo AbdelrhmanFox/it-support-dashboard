@@ -17,13 +17,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 export default function SupportPage() {
   const [branches, setBranches] = useState<{ id: string; name: string; code: string }[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
   const [issueTypeOptions, setIssueTypeOptions] = useState<string[]>([]);
   const [priorityOptions, setPriorityOptions] = useState<string[]>([]);
-  const [success, setSuccess] = useState<{ ticketNumber: string } | null>(null);
+  const [successTicket, setSuccessTicket] = useState<string | null>(null);
+  const [formKey, setFormKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -63,7 +65,7 @@ export default function SupportPage() {
 
       const result = await createPublicTicketAction(formData);
       if (result.success) {
-        setSuccess({ ticketNumber: result.ticket_number });
+        setSuccessTicket(result.ticket_number);
       } else {
         setError(result.error);
       }
@@ -85,27 +87,34 @@ export default function SupportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {success ? (
-              <div className="rounded-lg border border-green-500/50 bg-green-500/10 px-4 py-6 text-center text-green-800 dark:text-green-200">
-                <p className="font-medium">Your support request has been submitted successfully.</p>
-                <p className="mt-2 text-sm">
-                  Our IT team will contact you soon.
-                </p>
-                <p className="mt-3 text-sm font-mono text-muted-foreground">
-                  Ticket number: {success.ticketNumber}
-                </p>
+            {successTicket && (
+              <div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-800 dark:bg-green-950/30">
+                <div>
+                  <p className="text-sm font-semibold text-green-800 dark:text-green-200">Request submitted successfully!</p>
+                  <p className="mt-0.5 text-sm text-green-700 dark:text-green-300">
+                    Ticket number: <span className="font-mono font-bold">{successTicket}</span>
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0 border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-300 dark:hover:bg-green-900/50"
+                  onClick={() => { setSuccessTicket(null); setFormKey((k) => k + 1); }}
+                >
+                  Submit another
+                </Button>
               </div>
-            ) : (
-              <TicketForm
-                onSubmit={handleSubmit}
-                isSubmitting={isSubmitting}
-                error={error}
-                branches={branches}
-                departmentOptions={departmentOptions}
-                issueTypeOptions={issueTypeOptions}
-                priorityOptions={priorityOptions}
-              />
             )}
+            <TicketForm
+              key={formKey}
+              onSubmit={handleSubmit}
+              isSubmitting={isSubmitting}
+              error={error}
+              branches={branches}
+              departmentOptions={departmentOptions}
+              issueTypeOptions={issueTypeOptions}
+              priorityOptions={priorityOptions}
+            />
           </CardContent>
         </Card>
         <p className="mt-4 text-center text-xs text-muted-foreground">

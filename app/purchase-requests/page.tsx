@@ -51,6 +51,11 @@ import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const formSchema = z.object({
   request_number: z.string(),
@@ -97,6 +102,9 @@ export default function PurchaseRequestsPage() {
   const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PurchaseRequest | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("viewer-banner-dismissed") === "true");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -280,10 +288,20 @@ export default function PurchaseRequestsPage() {
 
   return (
     <DashboardLayout title="Purchase Requests">
-      {!canEdit && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          View only. Contact an administrator or support to create purchase requests.
-        </p>
+      {!canEdit && !bannerDismissed && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You have <strong>read-only access</strong> to this section. To make changes, contact your branch administrator.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setBannerDismissed(true); sessionStorage.setItem("viewer-banner-dismissed", "true"); }}
+            className="ml-4 shrink-0 text-lg leading-none text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -319,10 +337,7 @@ export default function PurchaseRequestsPage() {
               <SelectItem value="cancelled">Cancelled</SelectItem>
             </SelectContent>
           </Select>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -336,10 +351,16 @@ export default function PurchaseRequestsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {requests.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={7} rows={5} />
+                  ) : requests.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        No requests found.
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          title="No requests found"
+                          description="Create a purchase request to get started."
+                          action={canEdit ? { label: "+ New request", onClick: () => setDialogOpen(true) } : undefined}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -355,9 +376,7 @@ export default function PurchaseRequestsPage() {
                         <TableCell className="text-right">{r.quantity}</TableCell>
                         <TableCell>{r.expected_delivery_date ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={statusColors[r.status] ?? "secondary"}>
-                            {r.status.replace("_", " ")}
-                          </Badge>
+                          <StatusBadge value={r.status} />
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -369,15 +388,7 @@ export default function PurchaseRequestsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive hover:text-destructive"
-                                onClick={async () => {
-                                  if (!confirm(`Delete purchase request ${r.request_number}?`)) return;
-                                  try {
-                                    await deletePurchaseRequest(r.id);
-                                    load();
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : String(e));
-                                  }
-                                }}
+                                onClick={() => setDeleteTarget(r)}
                               >
                                 Delete
                               </Button>
@@ -390,7 +401,6 @@ export default function PurchaseRequestsPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
 
@@ -530,6 +540,30 @@ export default function PurchaseRequestsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete purchase request"
+        description={deleteTarget ? `Delete purchase request ${deleteTarget.request_number}?` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deletePurchaseRequest(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Purchase request deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

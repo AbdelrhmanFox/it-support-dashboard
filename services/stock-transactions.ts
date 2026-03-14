@@ -4,6 +4,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 import { getSparePartById, updateSparePart } from "@/services/spare-parts";
+import { getAssetById } from "@/services/assets";
 import { createAssetHistoryEntry, getAssetHistory, deleteAssetHistoryEntry } from "@/services/asset-history";
 
 type Row = Database["public"]["Tables"]["stock_transactions"]["Row"];
@@ -72,16 +73,23 @@ export async function useSparePartOnAsset(params: {
     throw new Error("Quantity must be greater than zero.");
   }
 
-  const part = await getSparePartById(sparePartId);
+  const [part, asset] = await Promise.all([
+    getSparePartById(sparePartId),
+    getAssetById(assetId),
+  ]);
   if (!part) {
     throw new Error("Spare part not found.");
+  }
+  if (!asset) {
+    throw new Error("Asset not found.");
   }
 
   if (part.current_stock < quantity) {
     throw new Error("Not enough stock available for this spare part.");
   }
 
-  const effectiveBranchId = branchId ?? part.branch_id ?? null;
+  // Use asset's branch so history shows under Asset History when filtering by that branch
+  const effectiveBranchId = asset.branch_id ?? branchId ?? part.branch_id ?? null;
 
   // 1) Create OUT stock transaction
   const tx = await createStockTransaction({

@@ -22,6 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export default function AssetHistoryPage() {
   const { effectiveBranchId } = useBranch();
@@ -75,10 +77,7 @@ export default function AssetHistoryPage() {
               ))}
             </SelectContent>
           </Select>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -90,10 +89,15 @@ export default function AssetHistoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {history.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={5} rows={5} />
+                  ) : history.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center text-muted-foreground">
-                        No history entries found.
+                      <TableCell colSpan={5}>
+                        <EmptyState
+                          title="No history entries"
+                          description="Asset maintenance history will appear here."
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -120,7 +124,6 @@ export default function AssetHistoryPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
     </DashboardLayout>

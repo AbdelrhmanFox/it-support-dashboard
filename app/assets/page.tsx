@@ -37,7 +37,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search, FileUp } from "lucide-react";
+import { toast } from "sonner";
 import { createAsset, updateAsset, deleteAsset } from "@/services/assets";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { getLookupOptions } from "@/services/lookup-options";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import { useForm } from "react-hook-form";
@@ -99,6 +104,9 @@ export default function AssetsPage() {
   const [deviceTypeOptions, setDeviceTypeOptions] = useState<string[]>([]);
   const [brandOptions, setBrandOptions] = useState<string[]>([]);
   const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("viewer-banner-dismissed") === "true");
 
   const form = useForm<AssetFormValues>({
     resolver: zodResolver(assetSchema),
@@ -336,10 +344,20 @@ export default function AssetsPage() {
 
   return (
     <DashboardLayout title="Assets">
-      {!canEdit && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          View only. Contact an administrator or support to add or edit assets.
-        </p>
+      {!canEdit && !bannerDismissed && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You have <strong>read-only access</strong> to this section. To make changes, contact your branch administrator.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setBannerDismissed(true); sessionStorage.setItem("viewer-banner-dismissed", "true"); }}
+            className="ml-4 shrink-0 text-lg leading-none text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -385,10 +403,7 @@ export default function AssetsPage() {
               </SelectContent>
             </Select>
           </div>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -402,10 +417,16 @@ export default function AssetsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {assets.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={7} rows={5} />
+                  ) : assets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        No assets found.
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          title="No assets found"
+                          description="Add your first asset to get started."
+                          action={canEdit ? { label: "+ Add asset", onClick: () => { setDialogOpen(true); setEditing(null); } } : undefined}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -421,9 +442,7 @@ export default function AssetsPage() {
                         <TableCell>{a.assigned_user_name ?? "—"}</TableCell>
                         <TableCell>{a.department ?? "—"}</TableCell>
                         <TableCell>
-                          <Badge variant={statusVariants[a.status] ?? "secondary"}>
-                            {a.status.replace("_", " ")}
-                          </Badge>
+                          <StatusBadge value={a.status} />
                         </TableCell>
                         <TableCell>
                           {canEdit && (
@@ -436,15 +455,7 @@ export default function AssetsPage() {
                                   variant="ghost"
                                   size="sm"
                                   className="text-destructive hover:text-destructive"
-                                  onClick={async () => {
-                                    if (!confirm(`Delete asset ${a.asset_tag}? This cannot be undone.`)) return;
-                                    try {
-                                      await deleteAsset(a.id);
-                                      load();
-                                    } catch (e) {
-                                      alert(e instanceof Error ? e.message : String(e));
-                                    }
-                                  }}
+                                  onClick={() => setDeleteTarget(a)}
                                 >
                                   Delete
                                 </Button>
@@ -458,7 +469,6 @@ export default function AssetsPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
 
@@ -688,6 +698,30 @@ export default function AssetsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete asset"
+        description={deleteTarget ? `Delete asset ${deleteTarget.asset_tag}? This cannot be undone.` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deleteAsset(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Asset deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

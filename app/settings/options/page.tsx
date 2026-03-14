@@ -17,6 +17,8 @@ import {
   type LookupOptionRow,
 } from "@/services/lookup-options";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export default function SettingsOptionsPage() {
   const { isAdmin } = useBranch();
@@ -25,6 +27,8 @@ export default function SettingsOptionsPage() {
   const [loading, setLoading] = useState(true);
   const [newLabel, setNewLabel] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LookupOptionRow | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -55,14 +59,23 @@ export default function SettingsOptionsPage() {
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remove this option? Existing records using this value keep the text; only the dropdown list changes.")) return;
+  function openDelete(row: LookupOptionRow) {
+    setDeleteTarget(row);
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
     setError(null);
+    setDeleteLoading(true);
     try {
-      await deleteLookupOption(id);
+      await deleteLookupOption(deleteTarget.id);
       load();
+      setDeleteTarget(null);
+      toast.success("Option removed");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -150,7 +163,7 @@ export default function SettingsOptionsPage() {
                       }}
                     />
                     <span className="flex-1 font-medium">{r.label}</span>
-                    <Button type="button" variant="ghost" size="icon" onClick={() => handleDelete(r.id)} aria-label="Delete">
+                    <Button type="button" variant="ghost" size="icon" onClick={() => openDelete(r)} aria-label="Delete">
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </li>
@@ -172,6 +185,17 @@ export default function SettingsOptionsPage() {
           </CardContent>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Remove option"
+        description="Remove this option? Existing records using this value keep the text; only the dropdown list changes."
+        confirmLabel="Remove"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={handleConfirmDelete}
+      />
     </DashboardLayout>
   );
 }

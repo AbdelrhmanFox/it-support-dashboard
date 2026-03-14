@@ -37,6 +37,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useBranch } from "@/components/branch-provider";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 const formSchema = z.object({
   ticket_number: z.string(),
@@ -84,6 +89,9 @@ export default function TicketsPage() {
   const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Ticket | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("viewer-banner-dismissed") === "true");
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -262,10 +270,20 @@ export default function TicketsPage() {
 
   return (
     <DashboardLayout title="Tickets">
-      {!canEdit && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          View only. Contact an administrator or support to create or update tickets.
-        </p>
+      {!canEdit && !bannerDismissed && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You have <strong>read-only access</strong> to this section. To make changes, contact your branch administrator.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setBannerDismissed(true); sessionStorage.setItem("viewer-banner-dismissed", "true"); }}
+            className="ml-4 shrink-0 text-lg leading-none text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -300,10 +318,7 @@ export default function TicketsPage() {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -317,10 +332,15 @@ export default function TicketsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {tickets.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={7} rows={5} />
+                  ) : tickets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground">
-                        No tickets found.
+                      <TableCell colSpan={7}>
+                        <EmptyState
+                          title="No tickets found"
+                          description="No support tickets match the selected filters."
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -334,11 +354,9 @@ export default function TicketsPage() {
                         <TableCell>{t.requester_name}</TableCell>
                         <TableCell>{t.department ?? "—"}</TableCell>
                         <TableCell>{t.issue_type ?? "—"}</TableCell>
-                        <TableCell>{t.priority}</TableCell>
+                        <TableCell><StatusBadge value={t.priority} /></TableCell>
                         <TableCell>
-                          <Badge variant={statusColors[t.status] ?? "secondary"}>
-                            {t.status.replace("_", " ")}
-                          </Badge>
+                          <StatusBadge value={t.status} />
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
@@ -350,15 +368,7 @@ export default function TicketsPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive hover:text-destructive"
-                                onClick={async () => {
-                                  if (!confirm(`Delete ticket ${t.ticket_number}?`)) return;
-                                  try {
-                                    await deleteTicket(t.id);
-                                    load();
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : String(e));
-                                  }
-                                }}
+                                onClick={() => setDeleteTarget(t)}
                               >
                                 Delete
                               </Button>
@@ -371,7 +381,6 @@ export default function TicketsPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
 
@@ -515,6 +524,30 @@ export default function TicketsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete ticket"
+        description={deleteTarget ? `Delete ticket ${deleteTarget.ticket_number}?` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deleteTicket(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Ticket deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

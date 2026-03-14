@@ -3,14 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import { Menu, Moon, Sun, Languages, LogOut, User } from "lucide-react";
+import { Menu, Moon, Sun, LogOut, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { NotificationDropdown } from "@/components/layout/notification-dropdown";
 import { useLocale } from "@/components/locale-provider";
-import { BranchSwitcher } from "@/components/branch-switcher";
 import { useBranch } from "@/components/branch-provider";
 import { RoleBadge } from "@/components/role-badge";
 import {
@@ -21,15 +20,22 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
+export interface TopBarBreadcrumb {
+  parent: string;
+  parentHref: string;
+  current: string;
+}
+
 interface TopBarProps {
   title?: string;
+  breadcrumb?: TopBarBreadcrumb;
   className?: string;
   onMenuClick?: () => void;
 }
 
-export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarProps) {
+export function TopBar({ title = "Dashboard", breadcrumb, className, onMenuClick }: TopBarProps) {
   const { setTheme } = useTheme();
-  const { setLocale } = useLocale();
+  const { setLocale, locale } = useLocale();
   const { role, branchLabel } = useBranch();
   const router = useRouter();
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -37,7 +43,11 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
   useEffect(() => {
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => setUser(session?.user ?? null));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_e, session) =>
+      setUser(session?.user ?? null)
+    );
     return () => subscription.unsubscribe();
   }, []);
 
@@ -48,38 +58,53 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
     router.refresh();
   }
 
+  const titleContent = breadcrumb ? (
+    <span className="flex items-center text-base font-medium text-foreground">
+      <Link
+        href={breadcrumb.parentHref}
+        className="text-muted-foreground hover:text-foreground transition-colors"
+      >
+        {breadcrumb.parent}
+      </Link>
+      <ChevronRight className="mx-1 size-3.5 shrink-0 text-muted-foreground" />
+      <span className="font-semibold text-foreground">{breadcrumb.current}</span>
+    </span>
+  ) : (
+    <h1 className="text-base font-semibold text-foreground">{title}</h1>
+  );
+
   return (
     <header
       className={cn(
-        "sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 lg:px-6",
+        "sticky top-0 z-30 flex h-topbar items-center gap-4 border-b border-border bg-card px-4 shadow-sm lg:px-6",
         className
       )}
     >
-      {/* Mobile menu trigger */}
       <Button
         variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="h-8 w-8 shrink-0 lg:hidden"
         onClick={onMenuClick}
         aria-label="Open menu"
       >
         <Menu className="h-5 w-5" />
       </Button>
 
-      <div className="flex flex-1 items-center gap-2">
-        <h1 className="text-xl font-semibold">{title}</h1>
-        <BranchSwitcher />
-        <RoleBadge className="shrink-0" />
+      <div className="min-w-0 flex-1">
+        {titleContent}
       </div>
 
-      <div className="flex items-center gap-2">
-        {/* Notifications dropdown */}
+      <div className="flex items-center gap-1">
         <NotificationDropdown />
 
-        {/* Theme toggle */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Toggle theme">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9"
+              aria-label="Toggle theme"
+            >
               <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
               <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
             </Button>
@@ -91,11 +116,15 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
           </DropdownMenuContent>
         </DropdownMenu>
 
-        {/* Language / RTL */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" aria-label="Language">
-              <Languages className="h-5 w-5" />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 text-xs font-medium"
+              aria-label="Language"
+            >
+              {locale === "ar" ? "ع" : "EN"}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -104,16 +133,22 @@ export function TopBar({ title = "Dashboard", className, onMenuClick }: TopBarPr
           </DropdownMenuContent>
         </DropdownMenu>
 
+        <div className="mx-1 h-6 w-px bg-border" aria-hidden />
+
         {user && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="User menu">
-                <User className="h-5 w-5" />
+              <Button
+                variant="ghost"
+                className="h-8 w-8 rounded-full bg-primary/10 p-0 text-xs font-semibold text-primary hover:bg-primary/20"
+                aria-label="User menu"
+              >
+                {user.email?.slice(0, 2).toUpperCase() ?? "?"}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
               <div className="px-2 py-1.5 text-sm font-medium">{user.email}</div>
-              <div className="px-2 pb-1.5 flex items-center gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 px-2 pb-1.5 text-xs text-muted-foreground">
                 <RoleBadge />
                 {role === "admin" ? (
                   <span>• All branches</span>

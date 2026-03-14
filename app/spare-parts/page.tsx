@@ -31,6 +31,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { SparePartForm, type SparePartFormSubmitPayload } from "@/modules/spare-parts/spare-part-form";
 import {
   createSparePart,
@@ -93,6 +98,9 @@ export default function SparePartsPage() {
   const [useQuantity, setUseQuantity] = useState<string>("1");
   const [useError, setUseError] = useState<string | null>(null);
   const [useProcessing, setUseProcessing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<SparePart | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("viewer-banner-dismissed") === "true");
 
   async function load() {
     setLoading(true);
@@ -286,10 +294,20 @@ export default function SparePartsPage() {
 
   return (
     <DashboardLayout title="Spare Parts">
-      {!canEdit && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          View only. Contact an administrator or support to add or edit parts.
-        </p>
+      {!canEdit && !bannerDismissed && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You have <strong>read-only access</strong> to this section. To make changes, contact your branch administrator.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setBannerDismissed(true); sessionStorage.setItem("viewer-banner-dismissed", "true"); }}
+            className="ml-4 shrink-0 text-lg leading-none text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
       <div className="space-y-6">
         <Card>
@@ -357,10 +375,7 @@ export default function SparePartsPage() {
               </Button>
             </div>
 
-            {loading ? (
-              <p className="text-muted-foreground">Loading...</p>
-            ) : (
-              <div className="rounded-md border">
+            <div className="rounded-md border">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -376,10 +391,16 @@ export default function SparePartsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {parts.length === 0 ? (
+                    {loading ? (
+                      <SkeletonRow columns={9} rows={5} />
+                    ) : parts.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={9} className="text-center text-muted-foreground">
-                          No parts found. Add one or adjust filters.
+                        <TableCell colSpan={9}>
+                          <EmptyState
+                            title="No parts found"
+                            description="Try adjusting your filters or add a new part."
+                            action={canEdit ? { label: "+ Add part", onClick: () => { setDialogOpen(true); setEditingPart(null); } } : undefined}
+                          />
                         </TableCell>
                       </TableRow>
                     ) : (
@@ -434,15 +455,7 @@ export default function SparePartsPage() {
                                     variant="ghost"
                                     size="sm"
                                     className="text-destructive hover:text-destructive"
-                                    onClick={async () => {
-                                      if (!confirm(`Delete spare part "${part.part_name}"? This cannot be undone. If purchase requests reference it, delete may fail.`)) return;
-                                      try {
-                                        await deleteSparePart(part.id);
-                                        load();
-                                      } catch (e) {
-                                        alert(e instanceof Error ? e.message : String(e));
-                                      }
-                                    }}
+                                    onClick={() => setDeleteTarget(part)}
                                   >
                                     Delete
                                   </Button>
@@ -464,7 +477,6 @@ export default function SparePartsPage() {
                   </TableBody>
                 </Table>
               </div>
-            )}
           </CardContent>
         </Card>
       </div>
@@ -654,6 +666,30 @@ export default function SparePartsPage() {
           />
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete spare part"
+        description={deleteTarget ? `Delete spare part "${deleteTarget.part_name}"? This cannot be undone. If purchase requests reference it, delete may fail.` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deleteSparePart(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Spare part deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

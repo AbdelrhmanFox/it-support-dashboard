@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getStockTransactions, deleteStockTransaction, reverseUseSparePartOnAsset } from "@/services/stock-transactions";
+import { getStockTransactions, deleteStockTransaction, reverseUseSparePartOnAsset, type StockTransaction } from "@/services/stock-transactions";
 import { getSpareParts } from "@/services/spare-parts";
 import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export default function InventoryPage() {
   const { effectiveBranchId, isAdmin, canEdit } = useBranch();
@@ -31,6 +36,10 @@ export default function InventoryPage() {
   const [parts, setParts] = useState<Awaited<ReturnType<typeof getSpareParts>>>([]);
   const [loading, setLoading] = useState(true);
   const [partFilter, setPartFilter] = useState<string>("all");
+  const [undoTarget, setUndoTarget] = useState<StockTransaction | null>(null);
+  const [undoLoading, setUndoLoading] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<StockTransaction | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -77,10 +86,7 @@ export default function InventoryPage() {
               ))}
             </SelectContent>
           </Select>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -94,10 +100,15 @@ export default function InventoryPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {                    transactions.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={(isAdmin || canEdit) ? 7 : 6} rows={5} />
+                  ) : transactions.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={(isAdmin || canEdit) ? 7 : 6} className="text-center text-muted-foreground">
-                        No transactions found.
+                      <TableCell colSpan={(isAdmin || canEdit) ? 7 : 6}>
+                        <EmptyState
+                          title="No transactions found"
+                          description="Stock transactions will appear here."
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -112,9 +123,7 @@ export default function InventoryPage() {
                           </Link>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={t.transaction_type === "IN" ? "success" : "secondary"}>
-                            {t.transaction_type}
-                          </Badge>
+                          <StatusBadge value={t.transaction_type} />
                         </TableCell>
                         <TableCell className="text-right">{t.quantity}</TableCell>
                         <TableCell>
@@ -131,15 +140,7 @@ export default function InventoryPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={async () => {
-                                  if (!confirm("Undo this use? Stock will be restored and the asset history entry will be removed.")) return;
-                                  try {
-                                    await reverseUseSparePartOnAsset(t.id);
-                                    load();
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : String(e));
-                                  }
-                                }}
+                                onClick={() => setUndoTarget(t)}
                               >
                                 Undo use
                               </Button>
@@ -149,15 +150,7 @@ export default function InventoryPage() {
                                 variant="ghost"
                                 size="sm"
                                 className="text-destructive hover:text-destructive"
-                                onClick={async () => {
-                                  if (!confirm("Delete this stock transaction? Stock totals will not auto-adjust; use a correcting IN/OUT if needed.")) return;
-                                  try {
-                                    await deleteStockTransaction(t.id);
-                                    load();
-                                  } catch (e) {
-                                    alert(e instanceof Error ? e.message : String(e));
-                                  }
-                                }}
+                                onClick={() => setDeleteTarget(t)}
                               >
                                 Delete
                               </Button>
@@ -170,7 +163,6 @@ export default function InventoryPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
       <Card>
@@ -218,6 +210,53 @@ export default function InventoryPage() {
           </div>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!undoTarget}
+        onOpenChange={(open) => !open && setUndoTarget(null)}
+        title="Undo use"
+        description="Undo this use? Stock will be restored and the asset history entry will be removed."
+        confirmLabel="Undo"
+        variant="default"
+        loading={undoLoading}
+        onConfirm={async () => {
+          if (!undoTarget) return;
+          setUndoLoading(true);
+          try {
+            await reverseUseSparePartOnAsset(undoTarget.id);
+            load();
+            setUndoTarget(null);
+            toast.success("Use undone");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setUndoLoading(false);
+          }
+        }}
+      />
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete transaction"
+        description="Delete this stock transaction? Stock totals will not auto-adjust; use a correcting IN/OUT if needed."
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deleteStockTransaction(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Transaction deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }

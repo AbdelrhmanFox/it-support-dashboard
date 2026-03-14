@@ -11,7 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
-import { GripVertical, Pencil, Check } from "lucide-react";
+import { GripVertical, Pencil, Check, Ticket, Package, Truck, FileText, Wrench, CalendarCheck } from "lucide-react";
 import {
   getDashboardCounts,
   getTicketsPerMonth,
@@ -533,6 +533,15 @@ export default function DashboardPage() {
     ]
   );
 
+  const kpiIconMap: Record<string, { Icon: typeof Ticket; iconClass: string }> = {
+    openTickets: { Icon: Ticket, iconClass: "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400" },
+    lowStock: { Icon: Package, iconClass: "bg-orange-50 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400" },
+    partsInstalledToday: { Icon: CalendarCheck, iconClass: "bg-green-50 text-green-600 dark:bg-green-950/50 dark:text-green-400" },
+    delayedSuppliers: { Icon: Truck, iconClass: "bg-red-50 text-red-600 dark:bg-red-950/50 dark:text-red-400" },
+    pendingRequests: { Icon: FileText, iconClass: "bg-yellow-50 text-yellow-600 dark:bg-yellow-950/50 dark:text-yellow-400" },
+    devicesMaintenance: { Icon: Wrench, iconClass: "bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400" },
+  };
+
   const getKpiCardContent = useCallback(
     (id: string) => {
       const c = counts ?? {
@@ -602,7 +611,24 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <DashboardLayout title="Dashboard">
-        <p className="text-muted-foreground">Loading dashboard...</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex flex-col gap-3 rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div className="flex items-center justify-between">
+                <div className="h-8 w-8 rounded-lg bg-muted animate-pulse" />
+                <div className="h-3 w-20 rounded bg-muted animate-pulse" />
+              </div>
+              <div className="h-9 w-16 rounded bg-muted animate-pulse" />
+              <div className="flex items-center justify-between">
+                <div className="h-3 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-12 rounded bg-muted animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
       </DashboardLayout>
     );
   }
@@ -645,38 +671,42 @@ export default function DashboardPage() {
         {dashboardEditMode && (
           <p className="text-sm text-muted-foreground">Drag cards to reorder; drag the right edge to resize width. Click Done to save.</p>
         )}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {kpiOrder.map((id) => {
             const content = getKpiCardContent(id);
             const isDragging = draggedKpiId === id;
-            const span = getKpiSpan(id);
-            const colClass = span === 4 ? "lg:col-span-4" : span === 2 ? "lg:col-span-2" : "lg:col-span-1";
+            const { Icon, iconClass } = kpiIconMap[id] ?? { Icon: Ticket, iconClass: "bg-muted text-muted-foreground" };
             return (
               <Card
                 key={id}
-                className={`relative ${isDragging ? "opacity-50" : ""} ${colClass}`}
+                className={`relative flex flex-col gap-3 rounded-xl border-border shadow-sm transition-shadow hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
                 draggable={dashboardEditMode}
                 onDragStart={() => handleKpiDragStart(id)}
                 onDragOver={handleKpiDragOver}
                 onDrop={() => handleKpiDrop(id)}
                 onDragEnd={handleKpiDragEnd}
               >
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 p-5 pb-0">
                   <div className="flex min-w-0 items-center gap-2">
                     {dashboardEditMode && (
                       <GripVertical className="h-4 w-4 shrink-0 cursor-grab text-muted-foreground active:cursor-grabbing" />
                     )}
-                    <CardTitle className="text-sm font-medium">{content.title}</CardTitle>
+                    <div className={`rounded-lg p-2 ${iconClass}`}>
+                      <Icon className="size-4" />
+                    </div>
+                    <CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{content.title}</CardTitle>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{content.value}</div>
-                  <p className="text-xs text-muted-foreground">{content.subtitle}</p>
-                  {!dashboardEditMode && (
-                    <Button variant="link" className="h-auto p-0 text-xs" asChild>
-                      <Link href={content.href}>{content.linkText}</Link>
-                    </Button>
-                  )}
+                <CardContent className="p-5 pt-3">
+                  <div className="text-3xl font-bold text-foreground">{content.value}</div>
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-muted-foreground">{content.subtitle}</span>
+                    {!dashboardEditMode && (
+                      <Link href={content.href} className="text-xs font-medium text-primary hover:underline">
+                        View →
+                      </Link>
+                    )}
+                  </div>
                 </CardContent>
                 {dashboardEditMode && (
                   <div

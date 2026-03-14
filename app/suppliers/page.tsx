@@ -36,6 +36,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SkeletonRow } from "@/components/ui/skeleton-row";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const SUPPLIER_IMPORT_HEADERS = ["name", "contact_person", "phone", "email", "sla_days", "notes"];
 
@@ -63,6 +67,9 @@ export default function SuppliersPage() {
   const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => typeof window !== "undefined" && sessionStorage.getItem("viewer-banner-dismissed") === "true");
 
   const form = useForm<SupplierFormValues>({
     resolver: zodResolver(supplierSchema),
@@ -237,10 +244,20 @@ export default function SuppliersPage() {
 
   return (
     <DashboardLayout title="Suppliers">
-      {!canEdit && (
-        <p className="mb-4 text-sm text-muted-foreground">
-          View only. Contact an administrator or support to add or edit suppliers.
-        </p>
+      {!canEdit && !bannerDismissed && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950/30">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            You have <strong>read-only access</strong> to this section. To make changes, contact your branch administrator.
+          </p>
+          <button
+            type="button"
+            onClick={() => { setBannerDismissed(true); sessionStorage.setItem("viewer-banner-dismissed", "true"); }}
+            className="ml-4 shrink-0 text-lg leading-none text-blue-500 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
       )}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -271,10 +288,7 @@ export default function SuppliersPage() {
               className="pl-9"
             />
           </div>
-          {loading ? (
-            <p className="text-muted-foreground">Loading...</p>
-          ) : (
-            <div className="rounded-md border">
+          <div className="rounded-md border">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -287,10 +301,16 @@ export default function SuppliersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {suppliers.length === 0 ? (
+                  {loading ? (
+                    <SkeletonRow columns={6} rows={5} />
+                  ) : suppliers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground">
-                        No suppliers found.
+                      <TableCell colSpan={6}>
+                        <EmptyState
+                          title="No suppliers found"
+                          description="Add your first supplier."
+                          action={canEdit ? { label: "+ Add supplier", onClick: () => { setDialogOpen(true); setEditing(null); } } : undefined}
+                        />
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -338,7 +358,6 @@ export default function SuppliersPage() {
                 </TableBody>
               </Table>
             </div>
-          )}
         </CardContent>
       </Card>
 
@@ -457,6 +476,30 @@ export default function SuppliersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete supplier"
+        description={deleteTarget ? `Delete supplier "${deleteTarget.name}"? This cannot be undone if referenced elsewhere.` : ""}
+        confirmLabel="Delete"
+        variant="destructive"
+        loading={deleteLoading}
+        onConfirm={async () => {
+          if (!deleteTarget) return;
+          setDeleteLoading(true);
+          try {
+            await deleteSupplier(deleteTarget.id);
+            load();
+            setDeleteTarget(null);
+            toast.success("Supplier deleted");
+          } catch (e) {
+            toast.error(e instanceof Error ? e.message : String(e));
+          } finally {
+            setDeleteLoading(false);
+          }
+        }}
+      />
     </DashboardLayout>
   );
 }
