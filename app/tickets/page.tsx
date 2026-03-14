@@ -336,10 +336,11 @@ export default function TicketsPage() {
                     <SkeletonRow columns={7} rows={5} />
                   ) : tickets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7}>
+                      <TableCell colSpan={7} className="p-0 align-middle">
                         <EmptyState
                           title="No tickets found"
                           description="No support tickets match the selected filters."
+                          action={canEdit ? { label: "+ New ticket", onClick: openCreate } : undefined}
                         />
                       </TableCell>
                     </TableRow>
