@@ -97,7 +97,7 @@ function NavLinks({
               const isActive =
                 pathname === item.href || pathname.startsWith(item.href + "/");
               const Icon = item.icon;
-              const link = (
+              const linkContent = (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -115,7 +115,19 @@ function NavLinks({
                   {!collapsed && <span>{item.title}</span>}
                 </Link>
               );
-              return link;
+              return collapsed ? (
+                <div key={item.href} className="group relative">
+                  {linkContent}
+                  <span
+                    className="absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100"
+                    aria-hidden
+                  >
+                    {item.title}
+                  </span>
+                </div>
+              ) : (
+                linkContent
+              );
             })}
           </div>
         </div>
@@ -204,7 +216,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
       </div>
 
       {/* Nav */}
-      <nav className="flex flex-1 flex-col overflow-y-auto px-3">
+      <nav className={cn("flex flex-1 flex-col overflow-y-auto px-3", collapsed && "overflow-x-visible")}>
         <NavLinks
           pathname={pathname}
           collapsed={collapsed}
@@ -237,7 +249,7 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
         {bottomNav.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
-          return (
+          const settingsLink = (
             <Link
               key={item.href}
               href={item.href}
@@ -254,6 +266,19 @@ export function Sidebar({ mobileOpen = false, onMobileClose }: SidebarProps) {
               <Icon className="h-4 w-4 shrink-0" />
               {!collapsed && <span>{item.title}</span>}
             </Link>
+          );
+          return collapsed ? (
+            <div key={item.href} className="group relative">
+              {settingsLink}
+              <span
+                className="absolute left-full top-1/2 z-50 ml-2 -translate-y-1/2 whitespace-nowrap rounded-md border border-border bg-popover px-2.5 py-1.5 text-xs font-medium text-popover-foreground shadow-md opacity-0 pointer-events-none transition-opacity duration-150 group-hover:opacity-100"
+                aria-hidden
+              >
+                {item.title}
+              </span>
+            </div>
+          ) : (
+            settingsLink
           );
         })}
         <div className="hidden lg:flex justify-center pb-2 pt-1">
