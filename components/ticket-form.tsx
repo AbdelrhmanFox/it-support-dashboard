@@ -27,7 +27,7 @@ const publicTicketSchema = z.object({
   email: z.string().email("Please enter a valid email"),
   department: z.string().optional(),
   issue_type: z.string().optional(),
-  priority: z.enum(["low", "medium", "high"]).default("medium"),
+  priority: z.string().min(1).default("Medium"),
   description: z.string().min(1, "Problem description is required"),
   branch_id: z.string().min(1, "Please select your branch"),
 });
@@ -37,25 +37,37 @@ export type PublicTicketFormValues = z.infer<typeof publicTicketSchema>;
 const MAX_FILE_MB = 5;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
-const ISSUE_TYPES = [
-  "Hardware",
-  "Software",
-  "Network",
-  "Email",
-  "Access / Permissions",
-  "Printer",
-  "Other",
+const DEFAULT_ISSUE_TYPES = [
+  "Hardware", "Software", "Network", "Email", "Access / Permissions", "Printer", "Other",
 ];
+const DEFAULT_PRIORITIES = ["Low", "Medium", "High"];
 
 interface TicketFormProps {
   onSubmit: (values: PublicTicketFormValues, attachment?: File | null) => Promise<void>;
   isSubmitting: boolean;
   error: string | null;
   branches: { id: string; name: string; code: string }[];
+  /** Admin-editable options from Settings > Dropdown lists. If empty, fallback to defaults. */
+  departmentOptions?: string[];
+  issueTypeOptions?: string[];
+  priorityOptions?: string[];
 }
 
-export function TicketForm({ onSubmit, isSubmitting, error, branches }: TicketFormProps) {
+export function TicketForm({
+  onSubmit,
+  isSubmitting,
+  error,
+  branches,
+  departmentOptions = [],
+  issueTypeOptions = [],
+  priorityOptions = [],
+}: TicketFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const departments = departmentOptions.length > 0 ? departmentOptions : [];
+  const issueTypes = issueTypeOptions.length > 0 ? issueTypeOptions : DEFAULT_ISSUE_TYPES;
+  const priorities = priorityOptions.length > 0 ? priorityOptions : DEFAULT_PRIORITIES;
+  const defaultPriority = priorities.includes("Medium") ? "Medium" : priorities[0] ?? "Medium";
+
   const form = useForm<PublicTicketFormValues>({
     resolver: zodResolver(publicTicketSchema),
     defaultValues: {
@@ -64,7 +76,7 @@ export function TicketForm({ onSubmit, isSubmitting, error, branches }: TicketFo
       email: "",
       department: "",
       issue_type: "",
-      priority: "medium",
+      priority: defaultPriority,
       description: "",
       branch_id: "",
     },
@@ -176,7 +188,7 @@ export function TicketForm({ onSubmit, isSubmitting, error, branches }: TicketFo
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Select...</SelectItem>
-            {ISSUE_TYPES.map((type) => (
+            {issueTypes.map((type) => (
               <SelectItem key={type} value={type}>
                 {type}
               </SelectItem>
@@ -188,18 +200,16 @@ export function TicketForm({ onSubmit, isSubmitting, error, branches }: TicketFo
       <div className="space-y-2">
         <Label>Priority</Label>
         <Select
-          value={form.watch("priority")}
-          onValueChange={(v) =>
-            form.setValue("priority", v as PublicTicketFormValues["priority"])
-          }
+          value={form.watch("priority") || defaultPriority}
+          onValueChange={(v) => form.setValue("priority", v)}
         >
           <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
+            {priorities.map((p) => (
+              <SelectItem key={p} value={p}>{p}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>

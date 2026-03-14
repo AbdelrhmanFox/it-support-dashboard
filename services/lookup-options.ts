@@ -11,6 +11,9 @@ export const LOOKUP_CATEGORIES = {
   asset_brand: "Brands (assets)",
   asset_department: "Departments (assets)",
   spare_part_category: "Categories (spare parts)",
+  support_department: "Department (support form)",
+  support_issue_type: "Issue type (support form)",
+  support_priority: "Priority (support form)",
 } as const;
 
 export type LookupCategory = keyof typeof LOOKUP_CATEGORIES;

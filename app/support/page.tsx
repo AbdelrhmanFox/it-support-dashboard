@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { TicketForm, type PublicTicketFormValues } from "@/components/ticket-form";
 import { createPublicTicketAction } from "@/app/support/actions";
 import { getBranches } from "@/services/branches";
+import { getLookupOptions } from "@/services/lookup-options";
 import {
   Card,
   CardContent,
@@ -19,12 +20,27 @@ import {
 
 export default function SupportPage() {
   const [branches, setBranches] = useState<{ id: string; name: string; code: string }[]>([]);
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([]);
+  const [issueTypeOptions, setIssueTypeOptions] = useState<string[]>([]);
+  const [priorityOptions, setPriorityOptions] = useState<string[]>([]);
   const [success, setSuccess] = useState<{ ticketNumber: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     getBranches().then(setBranches).catch(() => setBranches([]));
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      getLookupOptions("support_department").catch(() => []),
+      getLookupOptions("support_issue_type").catch(() => []),
+      getLookupOptions("support_priority").catch(() => []),
+    ]).then(([dept, issue, pri]) => {
+      setDepartmentOptions(dept);
+      setIssueTypeOptions(issue);
+      setPriorityOptions(pri);
+    });
   }, []);
 
   async function handleSubmit(
@@ -85,6 +101,9 @@ export default function SupportPage() {
                 isSubmitting={isSubmitting}
                 error={error}
                 branches={branches}
+                departmentOptions={departmentOptions}
+                issueTypeOptions={issueTypeOptions}
+                priorityOptions={priorityOptions}
               />
             )}
           </CardContent>

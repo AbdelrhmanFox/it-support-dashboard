@@ -15,7 +15,7 @@ export interface PublicTicketInput {
   email: string;
   department?: string | null;
   issue_type?: string | null;
-  priority: "low" | "medium" | "high";
+  priority: string;
   description: string;
   attachment_url?: string | null;
   branch_id: string | null;

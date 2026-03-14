@@ -33,7 +33,7 @@ export async function createPublicTicketAction(
   const email = getString(formData, "email");
   const department = getString(formData, "department") || null;
   const issue_type = getString(formData, "issue_type") || null;
-  const priority = (getString(formData, "priority") || "medium") as "low" | "medium" | "high";
+  const priority = getString(formData, "priority") || "Medium";
   const description = getString(formData, "description");
   const branch_id = getString(formData, "branch_id") || null;
 

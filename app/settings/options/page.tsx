@@ -111,7 +111,7 @@ export default function SettingsOptionsPage() {
           <CardHeader>
             <CardTitle>Dropdown lists</CardTitle>
             <CardDescription>
-              Manage options for Device type, Brand, and Department on the Add asset form. Changes apply app-wide after refresh.
+              Manage dropdown options for assets, spare parts, and the public support form (/support). Use &quot;Department (support form)&quot;, &quot;Issue type (support form)&quot;, and &quot;Priority (support form)&quot; to edit the lists shown on the support page. Changes apply after refresh.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

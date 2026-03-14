@@ -8,6 +8,7 @@ import { useBranch } from "@/components/branch-provider";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -40,6 +41,7 @@ import {
 } from "@/services/spare-parts";
 import { getAssets } from "@/services/assets";
 import { getLookupOptions } from "@/services/lookup-options";
+import { useSparePartOnAsset } from "@/services/stock-transactions";
 import { Plus, Search, FileUp } from "lucide-react";
 import { parseExcelFile, downloadTemplate } from "@/lib/excel-import";
 import {
@@ -85,6 +87,12 @@ export default function SparePartsPage() {
   const [importPreview, setImportPreview] = useState<Record<string, unknown>[]>([]);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: { row: number; message: string }[] } | null>(null);
+  const [useDialogOpen, setUseDialogOpen] = useState(false);
+  const [useTargetPart, setUseTargetPart] = useState<SparePart | null>(null);
+  const [useAssetId, setUseAssetId] = useState<string>("");
+  const [useQuantity, setUseQuantity] = useState<string>("1");
+  const [useError, setUseError] = useState<string | null>(null);
+  const [useProcessing, setUseProcessing] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -143,6 +151,14 @@ export default function SparePartsPage() {
     setImportPreview([]);
     setImportResult(null);
     setImportDialogOpen(true);
+  }
+
+  function openUseDialog(part: SparePart) {
+    setUseTargetPart(part);
+    setUseAssetId("");
+    setUseQuantity("1");
+    setUseError(null);
+    setUseDialogOpen(true);
   }
 
   async function handleImportFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
@@ -431,6 +447,14 @@ export default function SparePartsPage() {
                                     Delete
                                   </Button>
                                 )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => openUseDialog(part)}
+                                  disabled={part.current_stock <= 0}
+                                >
+                                  Use
+                                </Button>
                               </div>
                             )}
                           </TableCell>
@@ -508,6 +532,104 @@ export default function SparePartsPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={useDialogOpen} onOpenChange={setUseDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Use spare part</DialogTitle>
+          </DialogHeader>
+          {useTargetPart && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Part: <span className="font-medium">{useTargetPart.part_name}</span>{" "}
+                (current stock: {useTargetPart.current_stock})
+              </p>
+              <div className="space-y-2">
+                <Label>Asset</Label>
+                <Select value={useAssetId || "__none__"} onValueChange={(v) => setUseAssetId(v === "__none__" ? "" : v)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select asset" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Select asset</SelectItem>
+                    {assets.map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.asset_tag} {a.serial_number ? `(${a.serial_number})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Quantity</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={useTargetPart.current_stock}
+                  value={useQuantity}
+                  onChange={(e) => setUseQuantity(e.target.value)}
+                />
+              </div>
+              {useError && (
+                <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {useError}
+                </div>
+              )}
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setUseDialogOpen(false);
+                    setUseTargetPart(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  disabled={
+                    useProcessing ||
+                    !useAssetId ||
+                    !Number.isFinite(Number(useQuantity)) ||
+                    Number(useQuantity) <= 0
+                  }
+                  onClick={async () => {
+                    if (!useTargetPart || !useAssetId) return;
+                    const qty = Number(useQuantity) || 1;
+                    setUseProcessing(true);
+                    setUseError(null);
+                    try {
+                      await useSparePartOnAsset({
+                        sparePartId: useTargetPart.id,
+                        assetId: useAssetId,
+                        quantity: qty,
+                        branchId: effectiveBranchId ?? userBranchId ?? null,
+                        performedById: null,
+                      });
+                      setUseDialogOpen(false);
+                      setUseTargetPart(null);
+                      load();
+                    } catch (e) {
+                      const msg =
+                        e instanceof Error
+                          ? e.message
+                          : e && typeof e === "object" && "message" in e && typeof (e as { message: unknown }).message === "string"
+                            ? (e as { message: string }).message
+                            : String(e);
+                      setUseError(msg);
+                    } finally {
+                      setUseProcessing(false);
+                    }
+                  }}
+                >
+                  {useProcessing ? "Saving..." : "Use part"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
