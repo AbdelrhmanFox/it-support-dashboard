@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS public.tickets (
   priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'waiting_user', 'resolved', 'closed')),
   assigned_to_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  attachment_url TEXT,
   resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
