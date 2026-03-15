@@ -33,7 +33,11 @@ export async function createPublicTicketAction(
   const email = getString(formData, "email");
   const department = getString(formData, "department") || null;
   const issue_type = getString(formData, "issue_type") || null;
-  const priority = getString(formData, "priority") || "Medium";
+  const priorityRaw = getString(formData, "priority") || "medium";
+  const priority = priorityRaw.toLowerCase() as "low" | "medium" | "high" | "urgent";
+  if (!["low", "medium", "high", "urgent"].includes(priority)) {
+    return { success: false, error: "Invalid priority. Use low, medium, high, or urgent." };
+  }
   const description = getString(formData, "description");
   const branch_id = getString(formData, "branch_id") || null;
 
