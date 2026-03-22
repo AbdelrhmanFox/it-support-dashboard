@@ -383,7 +383,7 @@ export default function AssetsPage() {
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search by tag, serial, user..."
+                placeholder="Search by tag or serial..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-9"
